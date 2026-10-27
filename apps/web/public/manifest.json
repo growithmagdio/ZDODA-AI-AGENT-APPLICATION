@@ -1,0 +1,24 @@
+{
+  "name": "Zdoda — AI Agent Platform",
+  "short_name": "Zdoda",
+  "description": "One Agent. Every Channel. AI Agent SaaS for Web, WhatsApp, and Voice.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F8FF",
+  "theme_color": "#6538F5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -66,3 +66,19 @@ This file is an append-only log of significant technical and architectural decis
   Build `packages/widget` using Preact in Vite library mode, packaging into an async loader (`w.js`) and a Shadow DOM runtime (`widget.[hash].js`). Expose a programmatic `mountWidget(container, config, { mode })` API returning `{ update, destroy, open, close }`. Widget Studio imports this exact runtime and passes debounced config changes to `update()` for live, flicker-free rendering under 100ms.
 - **Consequences:**
   Complete style encapsulation; high fidelity between editor preview and live customer deployment.
+
+---
+
+### ADR-0008: Apple Liquid Glass Landing Page & Non-Overlapping Satellite Architecture
+
+- **Date:** 2026-10-27
+- **Status:** Accepted
+- **Context:**
+  The public landing page required an Apple-inspired Liquid Glass aesthetic featuring a live dashboard mockup (Smile Dental Clinic) and 3 floating integration channel badges (Website Chat, WhatsApp Cloud, Telephony Voice). Prior positioning resulted in badges overlapping dashboard metric cards and conversation previews.
+- **Decision:**
+  1. Positioned the 3 satellite badges around the outer perimeter of the dashboard card (Website Chat at `-top-5 -right-3`, WhatsApp Cloud at `-bottom-5 -left-3`, and Telephony Voice at `-bottom-5 -right-3`), guaranteeing 100% clearance over all metric cards, workspace titles, and chat bubbles.
+  2. Applied Apple-inspired design tokens: exact brand colors (`#6538F5`, `#5B78FF`, `#D946EF`, `#F7F8FF`, `#15153B`), multi-stop gradient on headline, `backdrop-filter: blur(20px)`, realistic soft shadows, and inner glass highlights.
+  3. Replaced floating desktop badges with a clean horizontal satellite pill row below the dashboard on tablet portrait and mobile (`< lg`) viewports to prevent viewport clipping and guarantee zero overlap.
+- **Consequences:**
+  Eliminates visual clutter, preserves complete dashboard legibility, and maintains responsive integrity across all device viewports.
+

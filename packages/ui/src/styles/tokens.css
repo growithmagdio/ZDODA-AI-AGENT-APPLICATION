@@ -1,0 +1,62 @@
+:root {
+  /* Canvas & Surfaces */
+  --canvas: #F7F8FF;
+  --surface: #FFFFFF;
+  --surface-2: #F1F2FB;
+  --surface-inset: #EAEBF7;
+
+  /* Typography Colors */
+  --ink: #15153B;
+  --ink-2: #4A4A6A;
+  --ink-3: #6B6B88;
+
+  /* Accent (Violet Identity) */
+  --accent: #6538F5;
+  --accent-ink: #5227E0;
+  --accent-tint: #EFEAFF;
+
+  /* Semantic Status */
+  --success: #0A7D3E;
+  --warning: #A15C00;
+  --danger: #C62834;
+  --separator: rgba(21, 21, 59, 0.08);
+  --separator-strong: rgba(21, 21, 59, 0.16);
+
+  /* Glass Edge & Highlights */
+  --glass-edge: rgba(255, 255, 255, 0.55);
+  --glass-highlight: rgba(255, 255, 255, 0.8);
+  --shadow-card: 0 1px 2px rgba(21, 21, 59, 0.04);
+  --shadow-float: 0 12px 40px -12px rgba(21, 21, 59, 0.18);
+  --focus-ring: 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent);
+
+  /* Fonts */
+  --font-text: -apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", Roboto, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Inter Display", "Inter Variable", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+}
+
+[data-theme="dark"] {
+  --canvas: #0C0C1D;
+  --surface: #16162E;
+  --surface-2: #1E1E3A;
+  --surface-inset: #121226;
+
+  --ink: #F3F3FF;
+  --ink-2: #B9B9D6;
+  --ink-3: #9090B0;
+
+  --accent: #6538F5;
+  --accent-ink: #9B80FF;
+  --accent-tint: rgba(101, 56, 245, 0.18);
+
+  --success: #3DD68C;
+  --warning: #FFB547;
+  --danger: #FF6B75;
+  --separator: rgba(255, 255, 255, 0.08);
+  --separator-strong: rgba(255, 255, 255, 0.16);
+
+  --glass-edge: rgba(255, 255, 255, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-float: 0 16px 48px -12px rgba(0, 0, 0, 0.45);
+}

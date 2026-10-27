@@ -1,0 +1,170 @@
+/* Screen reader only utility (accessible offscreen hiding) */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border-width: 0 !important;
+}
+
+/* SVG Lens Refraction Definition (loaded via hidden SVG element in layout) */
+.liquid-glass {
+  position: relative;
+  isolation: isolate;
+  will-change: transform, backdrop-filter;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), 
+              filter 0.2s ease,
+              background-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* 1. Regular Liquid Glass (Bars, Sheets, Menus, Toolbars) */
+.liquid-glass-regular {
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 8px 32px -8px rgba(21, 21, 59, 0.25);
+}
+
+:root[data-theme="dark"] .liquid-glass-regular {
+  background: color-mix(in oklab, var(--surface) 68%, transparent);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 32px -8px rgba(0, 0, 0, 0.5);
+}
+
+/* 2. Clear Liquid Glass (Over photos, video, voice call, widget launcher) */
+.liquid-glass-clear {
+  background: color-mix(in oklab, var(--surface) 25%, transparent);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 8px 24px -6px rgba(21, 21, 59, 0.2);
+}
+
+:root[data-theme="dark"] .liquid-glass-clear {
+  background: color-mix(in oklab, var(--surface) 22%, transparent);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 8px 24px -6px rgba(0, 0, 0, 0.4);
+}
+
+/* Clear over bright media with 35% black dimming layer */
+.liquid-glass-clear.liquid-glass-dimmed::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Specular Rim Gradient Overlay for authentic iPhone edge refraction */
+.liquid-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.3) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .liquid-glass::after {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(255, 255, 255, 0.15) 100%);
+}
+
+/* Refraction via SVG filter when supported */
+@supports (backdrop-filter: url(#zd-lens)) {
+  .liquid-glass-refract.liquid-glass-regular {
+    backdrop-filter: url(#zd-lens) blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: url(#zd-lens) blur(24px) saturate(1.6);
+  }
+  .liquid-glass-refract.liquid-glass-clear {
+    backdrop-filter: url(#zd-lens) blur(10px) saturate(1.4);
+    -webkit-backdrop-filter: url(#zd-lens) blur(10px) saturate(1.4);
+  }
+}
+
+/* Press Response: Scale down to 0.96 and brighten slightly */
+.liquid-glass-interactive:active,
+.liquid-glass-interactive[data-pressed="true"] {
+  transform: scale(0.96);
+  filter: brightness(1.08);
+}
+
+/* Radial touch highlight */
+.liquid-glass-touch-highlight {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.25) 0%, transparent 70%);
+  width: 140px;
+  height: 140px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.liquid-glass-interactive:active .liquid-glass-touch-highlight {
+  opacity: 1;
+}
+
+/* Fallback: Reduced Transparency / Increased Contrast */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .liquid-glass-regular,
+  .liquid-glass-clear {
+    background: var(--surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+  }
+  .liquid-glass::after {
+    background: var(--separator-strong) !important;
+  }
+}
+
+html[data-reduce-transparency="true"] .liquid-glass-regular,
+html[data-reduce-transparency="true"] .liquid-glass-clear {
+  background: var(--surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+}
+
+html[data-reduce-transparency="true"] .liquid-glass::after {
+  background: var(--separator-strong) !important;
+}
+
+/* Fallback: Low Concurrency / Low End Devices (Blur Only, No Refraction) */
+.glass-fallback-blur {
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+/* Scroll edge gradient masks for content under glass bars */
+.scroll-edge-mask-top {
+  mask-image: linear-gradient(to bottom, transparent 0%, black 24px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 24px);
+}
+
+.scroll-edge-mask-bottom {
+  mask-image: linear-gradient(to top, transparent 0%, black 32px);
+  -webkit-mask-image: linear-gradient(to top, transparent 0%, black 32px);
+}

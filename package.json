@@ -1,0 +1,21 @@
+{
+  "name": "zdoda-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:e2e": "pnpm --filter @zdoda/web test:e2e",
+    "db:migrate": "pnpm --filter @zdoda/db db:migrate",
+    "db:seed": "pnpm --filter @zdoda/db db:seed",
+    "db:generate": "pnpm --filter @zdoda/db db:generate"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4",
+    "typescript": "^5.7.3"
+  },
+  "packageManager": "pnpm@12.15.0"
+}
