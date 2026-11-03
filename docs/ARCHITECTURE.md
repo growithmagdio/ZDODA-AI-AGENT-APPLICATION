@@ -1,3 +1,20 @@
+# Zdoda Architecture
+
+> **Update 2026-11-03 — the backend now runs on Firebase (ADR-0012).** The sections further down describe the earlier Postgres/Prisma/BullMQ plan and are kept for history. Current architecture:
+>
+> ```
+> Browser (apps/web) ──Firebase Auth──► ID token
+>      │  /api/v1/* (Bearer token, X-Workspace-Id)
+>      ▼
+> Firebase Hosting ──rewrite──► Cloud Function `api` (Express, apps/functions)
+>      ▲                              │  Admin SDK
+> Customer site                       ├─► Firestore  workspaces/{ws}/agents|knowledgeSources|knowledgeChunks(vector 768)|widgets|conversations/messages|leads|integrations|usage|auditLog
+> <script zdoda-widget.js> ──/api/v1/public/widgets/:id/*──┤   memberships, users, invites, widgetKeys, workspaceSecrets
+>                                     ├─► Cloud Storage  workspaces/{ws}/knowledge/*, widgets/*
+>                                     └─► Providers: Anthropic | OpenAI | Gemini | demo · Stripe | demo · Resend | log
+> Firestore trigger `ingestKnowledge`: queued source → fetch/parse → chunk → embed → write chunks
+> ```
+
 # Zdoda System Architecture
 
 This document describes the high-level system architecture, monorepo package layout, data flow sequences, and provider abstractions for **Zdoda: One Agent. Every Channel.**

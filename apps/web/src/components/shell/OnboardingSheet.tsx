@@ -22,10 +22,10 @@ export const OnboardingSheet: React.FC = () => {
   const stepsList = [
     { num: 1, title: 'Business Profile', desc: 'Tell us about your organization' },
     { num: 2, title: 'Workspace Setup', desc: 'Configure default channels & language' },
-    { num: 3, title: 'Subscription Plan', desc: 'Choose a quota tier (Phase 2)' },
-    { num: 4, title: 'Create First Agent', desc: 'Configure prompt & voice (Phase 3)' },
-    { num: 5, title: 'Connect Knowledge', desc: 'Upload documents or site (Phase 3)' },
-    { num: 6, title: 'Deploy Chat Widget', desc: 'Embed snippet on site (Phase 4)' },
+    { num: 3, title: 'Subscription Plan', desc: 'Choose a quota tier' },
+    { num: 4, title: 'Create First Agent', desc: 'Configure prompt & voice' },
+    { num: 5, title: 'Connect Knowledge', desc: 'Upload documents or site' },
+    { num: 6, title: 'Deploy Chat Widget', desc: 'Embed snippet on site' },
     { num: 7, title: 'Publish Live', desc: 'Run end-to-end test and launch' },
   ];
 

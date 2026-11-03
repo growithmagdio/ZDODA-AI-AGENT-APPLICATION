@@ -108,7 +108,8 @@ export const PricingPage: React.FC = () => {
     },
   ];
 
-  const comparisonRows = [
+  type Cell = string | boolean;
+  const comparisonRows: { category: string; items: { feature: string; starter: Cell; pro: Cell; business: Cell; agency: Cell }[] }[] = [
     {
       category: 'Channels & Delivery',
       items: [

@@ -30,6 +30,7 @@ import { GlassBar, CommandPalette, Avatar, IconButton, SvgLensFilter, LiveIsland
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { OnboardingSheet } from './OnboardingSheet';
 import { useAuth } from '../../context/AuthContext';
+import { useWorkspace } from '../../lib/hooks';
 import { cn } from '@zdoda/ui';
 
 interface NavSection {
@@ -75,6 +76,7 @@ const NAV_SECTIONS: NavSection[] = [
 
 export const AppShell: React.FC = () => {
   const { user, logout } = useAuth();
+  const { data: wsDetail } = useWorkspace();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -252,14 +254,18 @@ export const AppShell: React.FC = () => {
               </kbd>
             </button>
 
-            {/* Quota Usage Meter (Demo) */}
-            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--separator)] text-[12px]">
-              <span className="text-[var(--ink-2)] font-medium">Messages:</span>
-              <span className="font-semibold text-[var(--ink)] tabular-nums">2,842 / 10,000</span>
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-[var(--accent)] text-white">
-                Demo
-              </span>
-            </div>
+            {/* Quota usage meter (live, from /workspaces/current) */}
+            {wsDetail && (
+              <NavLink to="/billing" className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--separator)] text-[12px]" title="AI replies used this month">
+                <span className="text-[var(--ink-2)] font-medium">Messages:</span>
+                <span className="font-semibold text-[var(--ink)] tabular-nums">
+                  {wsDetail.usage.messages.toLocaleString()} / {wsDetail.usage.messageLimit.toLocaleString()}
+                </span>
+                {wsDetail.billing.status === 'trialing' && (
+                  <span className="px-1.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[var(--accent)] text-white">Trial</span>
+                )}
+              </NavLink>
+            )}
 
             {/* Theme Toggle */}
             <IconButton

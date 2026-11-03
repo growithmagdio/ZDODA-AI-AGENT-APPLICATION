@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Button, Card } from '@zdoda/ui';
-import { apiRequest } from '../../lib/api';
+import { applyActionCode } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 export const VerifyEmailPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const token = searchParams.get('oobCode') || searchParams.get('token');
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -20,10 +21,8 @@ export const VerifyEmailPage: React.FC = () => {
 
     const verify = async () => {
       try {
-        await apiRequest('/auth/verify-email', {
-          method: 'POST',
-          body: JSON.stringify({ token }),
-        });
+        await applyActionCode(auth, token);
+        await auth.currentUser?.reload();
         setStatus('success');
       } catch (err: any) {
         setStatus('error');
