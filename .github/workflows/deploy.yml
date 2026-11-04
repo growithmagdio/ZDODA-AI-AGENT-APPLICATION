@@ -1,0 +1,111 @@
+name: Deploy to Firebase
+
+# Runs on every push to main, or manually from the Actions tab ("Run workflow").
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+      APP_URL: ${{ secrets.APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check required secrets
+        run: |
+          missing=""
+          for s in FIREBASE_PROJECT_ID FIREBASE_SERVICE_ACCOUNT VITE_FIREBASE_API_KEY VITE_FIREBASE_APP_ID ENCRYPTION_KEY; do
+            [ -z "${!s}" ] && missing="$missing $s"
+          done
+          if [ -n "$missing" ]; then echo "::error::Missing GitHub secrets:$missing"; exit 1; fi
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+
+      - name: Write web config (.env)
+        run: |
+          cat > .env <<ENV
+          VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN=${PROJECT_ID}.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID=${PROJECT_ID}
+          VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || format('{0}.firebasestorage.app', secrets.FIREBASE_PROJECT_ID) }}
+          VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_ENABLE_GOOGLE_SIGNIN=true
+          ENV
+
+      - name: Typecheck and test
+        run: |
+          pnpm -r typecheck
+          npx -y firebase-tools@14 emulators:exec --only auth --project demo-zdoda "pnpm --filter @zdoda/functions test"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Sync server secrets to Secret Manager
+        env:
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          used=""
+          for s in ENCRYPTION_KEY ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET RESEND_API_KEY; do
+            if [ -n "${!s}" ]; then
+              printf '%s' "${!s}" | npx -y firebase-tools@14 functions:secrets:set "$s" --data-file=- --project "$PROJECT_ID" --force --non-interactive
+              used="$used,$s"
+            fi
+          done
+          echo "ZDODA_SECRETS=${used#,}" >> "$GITHUB_ENV"
+
+      - name: Write server config (apps/functions/.env)
+        run: |
+          URL="${APP_URL:-https://${PROJECT_ID}.web.app}"
+          cat > apps/functions/.env <<ENV
+          WEB_APP_URL=${URL}
+          CORS_ALLOWED_ORIGINS=${URL},https://${PROJECT_ID}.web.app,https://${PROJECT_ID}.firebaseapp.com
+          ZDODA_SECRETS=${ZDODA_SECRETS}
+          LLM_PROVIDER=auto
+          EMBEDDING_PROVIDER=auto
+          STRIPE_PRICE_STARTER_MONTHLY=${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+          STRIPE_PRICE_STARTER_YEARLY=${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}
+          STRIPE_PRICE_PRO_MONTHLY=${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+          STRIPE_PRICE_PRO_YEARLY=${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
+          STRIPE_PRICE_BUSINESS_MONTHLY=${{ secrets.STRIPE_PRICE_BUSINESS_MONTHLY }}
+          STRIPE_PRICE_BUSINESS_YEARLY=${{ secrets.STRIPE_PRICE_BUSINESS_YEARLY }}
+          EMAIL_FROM=Zdoda <noreply@zdoda.com>
+          ENV
+          # Empty values would override defaults — drop them.
+          sed -i '/=$/d' apps/functions/.env
+
+      - name: Deploy (rules, indexes, functions, hosting)
+        run: npx -y firebase-tools@14 deploy --only firestore,storage,functions,hosting --project "$PROJECT_ID" --non-interactive --force
+
+      - name: Summary
+        run: echo "Deployed to ${APP_URL:-https://${PROJECT_ID}.web.app}" >> "$GITHUB_STEP_SUMMARY"

@@ -10,12 +10,14 @@ function adminApp(): App {
   if (!app) {
     app =
       getApps()[0] ||
-      initializeApp({
-        projectId: process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || 'demo-zdoda',
-        storageBucket:
-          process.env.FIREBASE_STORAGE_BUCKET ||
-          `${process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || 'demo-zdoda'}.appspot.com`,
-      });
+      (process.env.FIREBASE_CONFIG
+        ? initializeApp() // Cloud Functions provides project + bucket via FIREBASE_CONFIG
+        : initializeApp({
+            projectId: process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || 'demo-zdoda',
+            storageBucket:
+              process.env.FIREBASE_STORAGE_BUCKET ||
+              `${process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID || 'demo-zdoda'}.appspot.com`,
+          }));
   }
   return app;
 }

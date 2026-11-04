@@ -54,7 +54,24 @@ pnpm --filter @zdoda/functions test
 pnpm typecheck
 ```
 
-## Deploy to Firebase
+## Deploy automatically (GitHub Actions)
+
+`.github/workflows/deploy.yml` tests and deploys to Firebase on every push to `main` (or run it from the Actions tab). Add these repo secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Required | Value |
+|---|---|---|
+| `FIREBASE_PROJECT_ID` | yes | e.g. `zdoda-app` |
+| `FIREBASE_SERVICE_ACCOUNT` | yes | full JSON key of a service account with Editor, Firebase Admin, Secret Manager Admin, Service Account User |
+| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_APP_ID` | yes | from the Firebase web app config |
+| `ENCRYPTION_KEY` | yes | `openssl rand -hex 32` |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` | one recommended | AI answers + semantic search |
+| `APP_URL` | optional | custom domain, e.g. `https://app.zdoda.com` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | optional | defaults to `<project>.firebasestorage.app` |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*`, `RESEND_API_KEY` | optional | billing and invite emails |
+
+Server keys are copied into Firebase Secret Manager on each run; they never land in the repo.
+
+## Deploy to Firebase (manually)
 
 1. Create a Firebase project on the **Blaze** plan. Enable Authentication (Email/Password + Google), Firestore (Native mode) and Storage.
 2. `firebase use --add` and pick the project (replaces `demo-zdoda` in `.firebaserc`).
