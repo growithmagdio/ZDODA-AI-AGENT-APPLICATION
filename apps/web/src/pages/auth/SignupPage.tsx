@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, TextField, Card } from '@zdoda/ui';
 import { useAuth } from '../../context/AuthContext';
 import { ApiError } from '../../lib/api';
 
 export const SignupPage: React.FC = () => {
   const { signup } = useAuth();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
@@ -22,7 +23,8 @@ export const SignupPage: React.FC = () => {
 
     try {
       await signup(name, email, password, workspaceName);
-      navigate('/onboarding', { replace: true });
+      const rt = searchParams.get('returnTo');
+      navigate(rt && rt.startsWith('/') && !rt.startsWith('//') ? rt : '/onboarding', { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

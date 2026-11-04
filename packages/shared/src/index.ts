@@ -134,7 +134,7 @@ export const DEMO_PLANS: PlanQuota[] = [
     messageLimit: 10000,
     voiceSecondsLimit: 3600,
     agentLimit: 5,
-    features: ['5 AI Agents', 'Website Chat + WhatsApp', 'Inbound Voice AI', 'Advanced RAG Knowledge', 'Tools & Integrations', '10,000 messages / mo'],
+    features: ['5 AI Agents', 'Website Chat (WhatsApp soon)', 'Inbound Voice AI (soon)', 'Advanced RAG Knowledge', 'Tools & Integrations', '10,000 messages / mo'],
   },
   {
     planId: 'plan_business',
@@ -311,3 +311,205 @@ export const WidgetConfigV1Schema = z.object({
 });
 export type WidgetConfigV1 = z.infer<typeof WidgetConfigV1Schema>;
 export const DEFAULT_WIDGET_CONFIG: WidgetConfigV1 = WidgetConfigV1Schema.parse({});
+
+// ============================================================================
+// Firebase chat MVP — domain DTOs shared by web, functions and widget
+// ============================================================================
+export const EMBEDDING_DIMENSIONS = 768;
+
+export const LlmProviderEnum = z.enum(['anthropic', 'openai', 'gemini', 'mock']);
+export type LlmProvider = z.infer<typeof LlmProviderEnum>;
+
+export interface ModelOption {
+  id: string;
+  provider: LlmProvider;
+  label: string;
+  note?: string;
+}
+
+/** Models offered in the Agent builder. Any other model id can be typed in as "custom". */
+export const MODEL_CATALOG: ModelOption[] = [
+  { id: 'claude-sonnet-5-5', provider: 'anthropic', label: 'Claude Sonnet 5.5', note: 'Best quality' },
+  { id: 'claude-haiku-5-5', provider: 'anthropic', label: 'Claude Haiku 5.5', note: 'Fast & low cost' },
+  { id: 'gpt-5-mini', provider: 'openai', label: 'GPT-5 mini' },
+  { id: 'gpt-4.1-mini', provider: 'openai', label: 'GPT-4.1 mini' },
+  { id: 'gemini-2.5-flash', provider: 'gemini', label: 'Gemini 2.5 Flash' },
+  { id: 'gemini-2.5-pro', provider: 'gemini', label: 'Gemini 2.5 Pro' },
+  { id: 'zdoda-demo', provider: 'mock', label: 'Demo model', note: 'No API key needed — answers from your knowledge base only' },
+];
+
+export const AgentInputSchema = z.object({
+  name: z.string().min(2).max(60),
+  description: z.string().max(280).optional().default(''),
+  systemPrompt: z.string().max(8000).default(''),
+  greeting: z.string().max(500).default('Hi! How can I help you today?'),
+  fallbackMessage: z
+    .string()
+    .max(500)
+    .default("I'm not sure about that. Would you like me to connect you with our team?"),
+  model: z
+    .object({
+      provider: LlmProviderEnum.default('mock'),
+      id: z.string().min(1).default('zdoda-demo'),
+      temperature: z.number().min(0).max(1).default(0.3),
+    })
+    .default({ provider: 'mock', id: 'zdoda-demo', temperature: 0.3 }),
+  language: z.string().default('auto'),
+  knowledgeSourceIds: z.array(z.string()).default([]), // empty = all sources in the workspace
+  useKnowledge: z.boolean().default(true),
+  strictKnowledge: z.boolean().default(true), // only answer from the knowledge base
+  handoffEnabled: z.boolean().default(true),
+  handoffMessage: z.string().max(500).default('Sure — I have notified our team. Someone will reply here shortly.'),
+  leadCapture: z.boolean().default(true),
+  bookingUrl: z.string().url().optional().or(z.literal('')).default(''),
+});
+export type AgentInput = z.infer<typeof AgentInputSchema>;
+
+export interface AgentDTO extends AgentInput {
+  id: string;
+  status: 'draft' | 'published';
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const KnowledgeSourceTypeEnum = z.enum(['url', 'sitemap', 'file', 'text', 'faq']);
+export type KnowledgeSourceType = z.infer<typeof KnowledgeSourceTypeEnum>;
+export type KnowledgeSourceStatus = 'queued' | 'processing' | 'ready' | 'failed';
+
+export const CreateKnowledgeSourceSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('url'), url: z.string().url(), name: z.string().max(120).optional() }),
+  z.object({
+    type: z.literal('sitemap'),
+    url: z.string().url(),
+    name: z.string().max(120).optional(),
+    maxPages: z.number().int().min(1).max(500).optional(),
+  }),
+  z.object({ type: z.literal('text'), name: z.string().min(1).max(120), text: z.string().min(1).max(200_000) }),
+  z.object({
+    type: z.literal('faq'),
+    name: z.string().min(1).max(120),
+    items: z.array(z.object({ q: z.string().min(1).max(500), a: z.string().min(1).max(4000) })).min(1).max(500),
+  }),
+]);
+export type CreateKnowledgeSourceInput = z.infer<typeof CreateKnowledgeSourceSchema>;
+
+export interface KnowledgeSourceDTO {
+  id: string;
+  type: KnowledgeSourceType;
+  name: string;
+  url?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  status: KnowledgeSourceStatus;
+  error?: string | null;
+  chunkCount: number;
+  charCount: number;
+  pageCount?: number;
+  embeddingModel?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Citation {
+  sourceId: string;
+  title: string;
+  url?: string | null;
+  snippet: string;
+}
+
+export type ChannelType = 'web' | 'test' | 'whatsapp' | 'voice';
+export type ConversationStatus = 'open' | 'handoff' | 'resolved';
+export type MessageRole = 'user' | 'assistant' | 'human' | 'system';
+
+export interface MessageDTO {
+  id: string;
+  role: MessageRole;
+  text: string;
+  citations?: Citation[];
+  authorName?: string | null;
+  createdAt: string;
+}
+
+export interface ConversationDTO {
+  id: string;
+  channel: ChannelType;
+  agentId: string;
+  agentName?: string;
+  widgetId?: string | null;
+  status: ConversationStatus;
+  takeover: boolean;
+  assignedTo?: string | null;
+  contact: { name?: string | null; email?: string | null; phone?: string | null };
+  lastMessage: string;
+  lastMessageAt: string;
+  messageCount: number;
+  pageUrl?: string | null;
+  createdAt: string;
+}
+
+export interface WidgetDTO {
+  id: string;
+  name: string;
+  agentId: string;
+  draftConfig: WidgetConfigV1;
+  publishedConfig: WidgetConfigV1 | null;
+  publishedVersion: number;
+  hasUnpublishedChanges: boolean;
+  allowedOrigins: string[];
+  publishedAt?: string | null;
+  updatedAt: string;
+}
+
+export interface UsageDTO {
+  period: string; // YYYY-MM
+  messages: number;
+  messageLimit: number;
+  agents: number;
+  agentLimit: number;
+}
+
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired';
+
+export interface BillingDTO {
+  plan: PlanQuota['slug'];
+  status: SubscriptionStatus;
+  provider: 'stripe' | 'mock';
+  interval: 'month' | 'year';
+  trialEndsAt?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  stripeConfigured: boolean;
+}
+
+export interface SystemStatusDTO {
+  llm: { provider: LlmProvider; live: boolean; available: LlmProvider[] };
+  embeddings: { provider: 'openai' | 'gemini' | 'mock'; live: boolean; model: string };
+  payments: { provider: 'stripe' | 'mock'; live: boolean };
+  email: { provider: 'resend' | 'log'; live: boolean };
+  storage: { live: boolean };
+}
+
+export function getPlan(slug: string | undefined | null): PlanQuota {
+  return DEMO_PLANS.find((p) => p.slug === slug) || DEMO_PLANS[0];
+}
+
+export function usagePeriod(date = new Date()): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+export const IntegrationKindEnum = z.enum(['webhook', 'booking_link', 'google_sheets', 'slack', 'hubspot', 'zapier', 'make', 'n8n', 'google_calendar']);
+export type IntegrationKind = z.infer<typeof IntegrationKindEnum>;
+
+export interface IntegrationDTO {
+  id: string;
+  kind: IntegrationKind;
+  name: string;
+  status: 'connected' | 'error';
+  config: Record<string, unknown>;
+  events: string[];
+  lastRunAt?: string | null;
+  lastError?: string | null;
+  createdAt: string;
+}

@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Uploads go through the API (size/type checks + ingestion). Widget images are served
+// with download tokens, which bypass these rules by design. Everything else is denied.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -4,14 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "turbo run dev",
-    "build": "turbo run build",
-    "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint",
-    "test": "turbo run test",
-    "test:e2e": "pnpm --filter @zdoda/web test:e2e",
-    "db:migrate": "pnpm --filter @zdoda/db db:migrate",
-    "db:seed": "pnpm --filter @zdoda/db db:seed",
-    "db:generate": "pnpm --filter @zdoda/db db:generate"
+    "dev:local": "node scripts/dev-local.mjs",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "emulators": "firebase emulators:start --only auth,firestore,storage",
+    "seed": "pnpm --filter @zdoda/functions seed",
+    "deploy": "firebase deploy --only hosting,functions,firestore,storage"
   },
   "devDependencies": {
     "turbo": "^2.4.4",

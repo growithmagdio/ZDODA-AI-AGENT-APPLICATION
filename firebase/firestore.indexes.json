@@ -1,0 +1,28 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "knowledgeChunks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "embedding", "vectorConfig": { "dimension": 768, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "invites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspaceId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "memberships",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspaceId", "order": "ASCENDING" },
+        { "fieldPath": "role", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
