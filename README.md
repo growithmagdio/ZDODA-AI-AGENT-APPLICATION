@@ -55,6 +55,10 @@ pnpm --filter @zdoda/functions test
 pnpm typecheck
 ```
 
+## Host the frontend on Vercel (optional)
+
+`vercel.json` builds `apps/web` and forwards `/api/*` to the Firebase function (`us-central1-zdoda-ai-agent`). Import the repo at vercel.com/new, add the `VITE_FIREBASE_*` environment variables, and deploy. The backend still runs on Firebase (deploy it with the workflow below); set `WEB_APP_URL` / `CORS_ALLOWED_ORIGINS` / `APP_URL` to your Vercel domain.
+
 ## Deploy automatically (GitHub Actions)
 
 `.github/workflows/deploy.yml` tests and deploys to Firebase on every push to `main` (or run it from the Actions tab). Add these repo secrets (Settings → Secrets and variables → Actions):
