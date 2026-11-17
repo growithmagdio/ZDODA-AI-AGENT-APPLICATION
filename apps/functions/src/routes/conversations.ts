@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
 import { paths } from '../firebase.js';
-import { h, parse, serialize, notFound } from '../lib/http.js';
+import { h, parse, serialize, notFound, AppError } from '../lib/http.js';
 import { requirePermission } from '../middleware/auth.js';
 import { dispatchEvent } from '../lib/integrations.js';
 import { clip } from '../lib/util.js';
+import { sendWhatsAppText } from './whatsapp.js';
 
 export const conversationsRouter = Router();
 
@@ -60,7 +61,14 @@ conversationsRouter.post(
     const ws = req.ws!.workspaceId;
     const { text } = parse(z.object({ text: z.string().min(1).max(4000) }), req.body);
     const ref = paths.conversations(ws).doc(req.params.id);
-    if (!(await ref.get()).exists) throw notFound('Conversation');
+    const conv = await ref.get();
+    if (!conv.exists) throw notFound('Conversation');
+    if (conv.get('channel') === 'whatsapp') {
+      const to = String(conv.get('contact')?.phone || '').replace(/^\+/, '');
+      await sendWhatsAppText(ws, to, text).catch((e) => {
+        throw new AppError(502, 'WHATSAPP_SEND_FAILED', `WhatsApp didn't accept the message: ${e.message}`);
+      });
+    }
     const msg = paths.messages(ws, ref.id).doc();
     await msg.set({ role: 'human', text, authorId: req.user!.uid, authorName: req.user!.name, createdAt: FieldValue.serverTimestamp() });
     await ref.update({

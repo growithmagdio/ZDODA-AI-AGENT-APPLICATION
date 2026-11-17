@@ -4,7 +4,7 @@ import { paths } from '../firebase.js';
 import { decrypt } from './util.js';
 import { assertPublicUrl } from '../rag/extract.js';
 
-export type IntegrationEvent = 'lead.captured' | 'conversation.handoff' | 'conversation.resolved' | 'message.created';
+export type IntegrationEvent = 'lead.captured' | 'conversation.handoff' | 'conversation.resolved' | 'message.created' | 'call.ended';
 
 /** Delivers an event to every connected webhook that subscribed to it. Signed with HMAC-SHA256. */
 export async function dispatchEvent(ws: string, event: IntegrationEvent, payload: Record<string, unknown>, opts: { onlyId?: string } = {}) {

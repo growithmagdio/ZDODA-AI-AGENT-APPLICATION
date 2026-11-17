@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { UserProfile, WorkspaceListItem } from '@zdoda/shared';
 import { db, paths } from '../firebase.js';
+import { config } from '../config.js';
 import { h, parse, AppError, serialize } from '../lib/http.js';
 import { createWorkspace, listWorkspacesFor } from '../lib/workspace.js';
 import type { AuthedUser } from '../middleware/auth.js';
@@ -25,7 +26,7 @@ export async function sessionPayload(user: AuthedUser) {
     name: u.name || user.name,
     avatarUrl: u.avatarUrl || user.picture || null,
     emailVerified: user.emailVerified,
-    role: u.globalRole === 'SUPERADMIN' ? 'SUPERADMIN' : 'USER',
+    role: u.globalRole === 'SUPERADMIN' || config.superadminEmails.includes(user.email) ? 'SUPERADMIN' : 'USER',
     createdAt: serialize(u.createdAt) as unknown as string,
   };
   const activeWorkspace = workspaces.find((w) => w.isDefault) || workspaces[0] || null;
