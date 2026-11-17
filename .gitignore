@@ -44,3 +44,4 @@ ui-debug.log
 storage-debug.log
 .emulator-data/
 apps/web/public/zdoda-widget.js
+apps/web/public/zdoda-voice.js

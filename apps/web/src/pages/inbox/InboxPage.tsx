@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, SegmentedControl, StatusPill, Badge, Avatar, EmptyState } from '@zdoda/ui';
-import { Inbox, Search, Send, Bot, UserRound, CheckCircle2, RotateCcw, Download, Globe, FlaskConical, Mail, Phone, Link as LinkIcon } from 'lucide-react';
+import { Inbox, Search, Send, Bot, UserRound, CheckCircle2, RotateCcw, Download, Globe, FlaskConical, Mail, Phone, Link as LinkIcon, MessageCircle, PhoneCall, Play } from 'lucide-react';
 import type { ConversationDTO, MessageDTO } from '@zdoda/shared';
 import { api } from '../../lib/api';
 import { useApiMutation, useCan, wsKey, timeAgo } from '../../lib/hooks';
@@ -24,7 +24,10 @@ export const InboxPage: React.FC = () => {
   );
 };
 
-const channelIcon = (c: string) => (c === 'test' ? <FlaskConical className="w-3 h-3" /> : <Globe className="w-3 h-3" />);
+const channelIcon = (c: string) =>
+  c === 'test' ? <FlaskConical className="w-3 h-3" /> : c === 'voice' ? <PhoneCall className="w-3 h-3" /> : c === 'whatsapp' ? <MessageCircle className="w-3 h-3" /> : <Globe className="w-3 h-3" />;
+const channelLabel = (c: string) => ({ web: 'Website', voice: 'Call', whatsapp: 'WhatsApp', test: 'Test' })[c] || c;
+const fmtDur = (s?: number) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '');
 const contactName = (c: ConversationDTO) => c.contact?.name || c.contact?.email || c.contact?.phone || `Visitor ${c.id.replace(/[^a-z0-9]/gi, '').slice(0, 4).toUpperCase()}`;
 
 const Conversations: React.FC = () => {
@@ -92,7 +95,7 @@ const Conversations: React.FC = () => {
                   <p className="text-[12px] text-[var(--ink-2)] truncate">{c.lastMessage}</p>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="inline-flex items-center gap-1 text-[11px] text-[var(--ink-3)]">
-                      {channelIcon(c.channel)} {c.channel === 'web' ? 'Website' : c.channel}
+                      {channelIcon(c.channel)} {channelLabel(c.channel)}
                     </span>
                     {c.status === 'handoff' && <Badge variant="accent">Needs human</Badge>}
                     {c.status === 'resolved' && <Badge variant="outline">Resolved</Badge>}
@@ -119,6 +122,9 @@ const Thread: React.FC<{ id: string }> = ({ id }) => {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [q.data?.messages.length]);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  useEffect(() => setAudioUrl(null), [id]);
+  const recording = useApiMutation(() => api.get<{ url: string }>(`/calls/${id}/recording`), { onSuccess: (o) => setAudioUrl(o.url) });
 
   if (q.isLoading) return <Card><LoadingBlock rows={6} /></Card>;
   if (q.error || !q.data) return <ErrorBlock error={q.error} />;
@@ -159,6 +165,26 @@ const Thread: React.FC<{ id: string }> = ({ id }) => {
               ))}
           </div>
         </div>
+        {c.channel === 'voice' && (
+          <div className="px-5 py-3 border-b border-[var(--separator)] space-y-2 bg-[var(--surface)]">
+            <p className="text-[12px] text-[var(--ink-3)]">
+              {(c as any).direction === 'outbound' ? 'Outbound call' : (c as any).direction === 'web' ? 'Website voice call' : 'Inbound call'}
+              {(c as any).from ? ` · from ${(c as any).from}` : ''}
+              {(c as any).to ? ` · to ${(c as any).to}` : ''}
+              {(c as any).durationSec ? ` · ${fmtDur((c as any).durationSec)}` : ''}
+              {(c as any).endedReason ? ` · ended: ${String((c as any).endedReason).replace(/_/g, ' ')}` : ''}
+            </p>
+            {(c as any).summary && <p className="text-[13px] text-[var(--ink)]"><b>Summary:</b> {(c as any).summary}</p>}
+            {(c as any).recordingPath &&
+              (audioUrl ? (
+                <audio controls src={audioUrl} className="w-full h-9" />
+              ) : (
+                <Button size="sm" variant="outline" icon={<Play className="w-3.5 h-3.5" />} loading={recording.isPending} onClick={() => recording.mutate(undefined)}>
+                  Play recording
+                </Button>
+              ))}
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-[var(--surface-2)]/40">
           {q.data.messages.map((m) =>
             m.role === 'system' ? (
@@ -183,7 +209,7 @@ const Thread: React.FC<{ id: string }> = ({ id }) => {
           )}
           <div ref={endRef} />
         </div>
-        {editable && (
+        {editable && c.channel !== 'voice' && (
           <form
             className="flex items-end gap-2 p-3 border-t border-[var(--separator)]"
             onSubmit={(e) => {
@@ -219,7 +245,7 @@ const Thread: React.FC<{ id: string }> = ({ id }) => {
         <InfoRow icon={<LinkIcon className="w-4 h-4" />} label="Page" value={c.pageUrl} />
         <div className="pt-3 border-t border-[var(--separator)] text-[12px] text-[var(--ink-3)] space-y-1">
           <p>{c.messageCount} messages</p>
-          <p>Channel: {c.channel === 'web' ? 'Website chat' : c.channel}</p>
+          <p>Channel: {channelLabel(c.channel)}</p>
         </div>
       </Card>
     </div>

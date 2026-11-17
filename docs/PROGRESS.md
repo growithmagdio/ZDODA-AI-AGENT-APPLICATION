@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-11-17 — Full plan (`feat/full-plan`)
+
+- **Voice:** Zdoda Voice Engine worker (`apps/voice`, LiveKit Agents: Silero VAD, Deepgram STT, turn detector, Claude/GPT/Gemini, ElevenLabs/Cartesia/OpenAI TTS). Web calls from the widget and the agent builder, phone numbers (Twilio ↔ LiveKit SIP), inbound + outbound calls, transfer, recording, summaries, voice-minute quotas, outbound campaigns.
+- **WhatsApp** Cloud API channel with Inbox replies.
+- **Agent tools** with function calling: Google Calendar, Google Sheets, GoHighLevel, API request, webhook, MCP.
+- **Billing:** Razorpay (INR), voice minutes and number limits per plan.
+- **Platform:** agent versions, templates, daily knowledge re-sync, agency sub-accounts + white-label, API keys + REST API, super-admin panel.
+- **Fixes:** Tailwind now scans `packages/ui` (dialogs and switches were unstyled), primary is the default button style, CI install fixed.
+
 ## 2026-11-03 — Firebase chat MVP (`feat/firebase-chat-mvp`)
 
 Built the full chat product on Firebase, following the product plan (chat first; WhatsApp and voice next).

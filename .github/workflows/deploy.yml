@@ -17,6 +17,7 @@ jobs:
     env:
       PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
       APP_URL: ${{ secrets.APP_URL }}
+      HAS_VOICE: ${{ secrets.LIVEKIT_API_SECRET != '' && secrets.VOICE_WORKER_SECRET != '' && secrets.DEEPGRAM_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -74,15 +75,38 @@ jobs:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          VOICE_WORKER_SECRET: ${{ secrets.VOICE_WORKER_SECRET }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          RECORDING_GCP_CREDENTIALS: ${{ secrets.RECORDING_GCP_CREDENTIALS }}
         run: |
           used=""
-          for s in ENCRYPTION_KEY ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET RESEND_API_KEY; do
+          for s in ENCRYPTION_KEY ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET RESEND_API_KEY LIVEKIT_API_SECRET VOICE_WORKER_SECRET TWILIO_AUTH_TOKEN META_APP_SECRET RAZORPAY_KEY_SECRET RAZORPAY_WEBHOOK_SECRET GOOGLE_CLIENT_SECRET RECORDING_GCP_CREDENTIALS; do
             if [ -n "${!s}" ]; then
               printf '%s' "${!s}" | npx -y firebase-tools@14 functions:secrets:set "$s" --data-file=- --project "$PROJECT_ID" --force --non-interactive
               used="$used,$s"
             fi
           done
           echo "ZDODA_SECRETS=${used#,}" >> "$GITHUB_ENV"
+
+      - name: Sync voice worker secrets
+        if: ${{ env.HAS_VOICE == 'true' }}
+        env:
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          CARTESIA_API_KEY: ${{ secrets.CARTESIA_API_KEY }}
+        run: |
+          for s in DEEPGRAM_API_KEY ELEVENLABS_API_KEY CARTESIA_API_KEY; do
+            if [ -n "${!s}" ]; then printf '%s' "${!s}" | npx -y firebase-tools@14 functions:secrets:set "$s" --data-file=- --project "$PROJECT_ID" --force --non-interactive; echo "$s" >> .voice-secrets; fi
+          done
+          # AI keys already synced above are shared with the worker
+          for s in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY; do
+            case ",$ZDODA_SECRETS," in *",$s,"*) echo "$s" >> .voice-secrets;; esac
+          done
 
       - name: Write server config (apps/functions/.env)
         run: |
@@ -100,12 +124,35 @@ jobs:
           STRIPE_PRICE_BUSINESS_MONTHLY=${{ secrets.STRIPE_PRICE_BUSINESS_MONTHLY }}
           STRIPE_PRICE_BUSINESS_YEARLY=${{ secrets.STRIPE_PRICE_BUSINESS_YEARLY }}
           EMAIL_FROM=Zdoda <noreply@zdoda.com>
+          LIVEKIT_URL=${{ secrets.LIVEKIT_URL }}
+          LIVEKIT_API_KEY=${{ secrets.LIVEKIT_API_KEY }}
+          LIVEKIT_SIP_URI=${{ secrets.LIVEKIT_SIP_URI }}
+          TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
+          WHATSAPP_VERIFY_TOKEN=${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+          RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_PLAN_STARTER=${{ secrets.RAZORPAY_PLAN_STARTER }}
+          RAZORPAY_PLAN_PRO=${{ secrets.RAZORPAY_PLAN_PRO }}
+          RAZORPAY_PLAN_BUSINESS=${{ secrets.RAZORPAY_PLAN_BUSINESS }}
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          RECORDING_GCS_BUCKET=${{ secrets.RECORDING_GCS_BUCKET }}
+          SUPERADMIN_EMAILS=${{ secrets.SUPERADMIN_EMAILS }}
           ENV
           # Empty values would override defaults — drop them.
           sed -i '/=$/d' apps/functions/.env
 
       - name: Deploy (rules, indexes, functions, hosting)
         run: npx -y firebase-tools@14 deploy --only firestore,storage,functions,hosting --project "$PROJECT_ID" --non-interactive --force
+
+      - name: Deploy voice worker to Cloud Run
+        if: ${{ env.HAS_VOICE == 'true' }}
+        run: |
+          gcloud config set project "$PROJECT_ID"
+          gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --quiet
+          URL="${APP_URL:-https://${PROJECT_ID}.web.app}"
+          gcloud run deploy zdoda-voice --source apps/voice --region us-central1 --quiet \
+            --min-instances 1 --no-cpu-throttling --cpu 2 --memory 4Gi --no-allow-unauthenticated \
+            --set-env-vars "ZDODA_API_URL=${URL},LIVEKIT_URL=${{ secrets.LIVEKIT_URL }},LIVEKIT_API_KEY=${{ secrets.LIVEKIT_API_KEY }}" \
+            --set-secrets "LIVEKIT_API_SECRET=LIVEKIT_API_SECRET:latest,VOICE_WORKER_SECRET=VOICE_WORKER_SECRET:latest,$(./.github/voice-secrets.sh)"
 
       - name: Summary
         run: echo "Deployed to ${APP_URL:-https://${PROJECT_ID}.web.app}" >> "$GITHUB_STEP_SUMMARY"

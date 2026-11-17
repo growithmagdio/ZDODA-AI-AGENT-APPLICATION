@@ -31,7 +31,7 @@ export const Sheet: React.FC<SheetProps> = ({
           className={cn(
             'fixed z-50 bg-[var(--surface)] shadow-[var(--shadow-float)] border border-[var(--separator)]',
             // Mobile: bottom sheet
-            'bottom-0 inset-x-0 rounded-t-[24px] max-h-[90vh] overflow-y-auto p-6 md:inset-auto',
+            'bottom-0 left-0 right-0 rounded-t-[24px] max-h-[90vh] overflow-y-auto p-6 md:bottom-auto md:right-auto',
             // Desktop: centered modal
             'md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg md:rounded-[24px] md:max-h-[85vh]',
             'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]',

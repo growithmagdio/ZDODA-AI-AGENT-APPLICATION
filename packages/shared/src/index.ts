@@ -501,6 +501,9 @@ export interface UsageDTO {
   messageLimit: number;
   agents: number;
   agentLimit: number;
+  voiceMinutes: number;
+  voiceMinuteLimit: number;
+  numberLimit: number;
 }
 
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired';

@@ -25,6 +25,10 @@ import {
   Sun,
   X,
   Compass,
+  Megaphone,
+  Building2,
+  KeyRound,
+  ShieldCheck,
 } from 'lucide-react';
 import { GlassBar, CommandPalette, Avatar, IconButton, SvgLensFilter, LiveIsland, LiveIslandEvent, IPhoneTabBar } from '@zdoda/ui';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
@@ -59,7 +63,8 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Operate',
     items: [
       { label: 'Inbox', to: '/inbox', icon: <Inbox className="w-[18px] h-[18px] stroke-[1.75]" />, phase: 5 },
-      { label: 'Phone Numbers', to: '/phone-numbers', icon: <Phone className="w-[18px] h-[18px] stroke-[1.75]" />, phase: 5 },
+      { label: 'Phone Numbers', to: '/phone-numbers', icon: <Phone className="w-[18px] h-[18px] stroke-[1.75]" /> },
+      { label: 'Campaigns', to: '/campaigns', icon: <Megaphone className="w-[18px] h-[18px] stroke-[1.75]" /> },
       { label: 'Analytics', to: '/analytics', icon: <BarChart3 className="w-[18px] h-[18px] stroke-[1.75]" />, phase: 6 },
     ],
   },
@@ -67,7 +72,9 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Account',
     items: [
       { label: 'Templates', to: '/templates', icon: <Boxes className="w-[18px] h-[18px] stroke-[1.75]" />, phase: 3 },
-      { label: 'Team & Workspace', to: '/team', icon: <Users className="w-[18px] h-[18px] stroke-[1.75]" />, phase: 6 },
+      { label: 'Team & Workspace', to: '/team', icon: <Users className="w-[18px] h-[18px] stroke-[1.75]" /> },
+      { label: 'Agency', to: '/agency', icon: <Building2 className="w-[18px] h-[18px] stroke-[1.75]" /> },
+      { label: 'Developers', to: '/developers', icon: <KeyRound className="w-[18px] h-[18px] stroke-[1.75]" /> },
       { label: 'Billing & Subscription', to: '/billing', icon: <CreditCard className="w-[18px] h-[18px] stroke-[1.75]" />, phase: 2 },
       { label: 'Settings', to: '/settings', icon: <Settings className="w-[18px] h-[18px] stroke-[1.75]" />, phase: 6 },
     ],
@@ -77,6 +84,10 @@ const NAV_SECTIONS: NavSection[] = [
 export const AppShell: React.FC = () => {
   const { user, logout } = useAuth();
   const { data: wsDetail } = useWorkspace();
+  const sections: NavSection[] =
+    user?.role === 'SUPERADMIN'
+      ? [...NAV_SECTIONS, { title: 'Platform', items: [{ label: 'Admin', to: '/admin', icon: <ShieldCheck className="w-[18px] h-[18px] stroke-[1.75]" /> }] }]
+      : NAV_SECTIONS;
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -148,7 +159,7 @@ export const AppShell: React.FC = () => {
 
         {/* Sidebar Navigation Items */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-          {NAV_SECTIONS.map((section) => (
+          {sections.map((section) => (
             <div key={section.title} className="space-y-1">
               {!collapsed && (
                 <div className="px-3 pb-1 text-[11px] font-bold tracking-wider uppercase text-[var(--ink-3)] select-none">
@@ -339,7 +350,7 @@ export const AppShell: React.FC = () => {
               </div>
 
               <div className="space-y-4">
-                {NAV_SECTIONS.map((sec) => (
+                {sections.map((sec) => (
                   <div key={sec.title} className="space-y-1">
                     <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--ink-3)]">
                       {sec.title}

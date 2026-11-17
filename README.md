@@ -2,13 +2,14 @@
 
 One agent, every channel. Businesses train an AI agent on their website and documents, style a chat widget in **Widget Studio**, paste one line of code, and manage conversations, leads and handoffs from one inbox. Monthly subscription (Starter $49 · Pro $99 · Business $199 · Agency).
 
-This repo is the **chat MVP on Firebase**. WhatsApp and Voice AI are the next releases.
+Chat widget, WhatsApp and Voice AI (web calls and phone numbers) share one agent, one knowledge base and one inbox.
 
 ## What's inside
 
 ```
 apps/web          React 19 + Vite dashboard (Firebase Auth, TanStack Query, Tailwind v4)
-apps/functions    API: Express on Cloud Functions 2nd gen + Firestore + Storage + ingestion trigger
+apps/functions    API: Express on Cloud Functions 2nd gen + Firestore + Storage + ingestion, dialer and re-sync jobs
+apps/voice        Zdoda Voice Engine worker (Python, LiveKit Agents) — runs on Cloud Run
 packages/widget   Shadow-DOM chat widget runtime + zdoda-widget.js embed loader
 packages/shared   Zod schemas & types shared by all apps (WidgetConfigV1, plans, DTOs)
 packages/ui       Apple-inspired design system
@@ -58,16 +59,7 @@ pnpm typecheck
 
 `.github/workflows/deploy.yml` tests and deploys to Firebase on every push to `main` (or run it from the Actions tab). Add these repo secrets (Settings → Secrets and variables → Actions):
 
-| Secret | Required | Value |
-|---|---|---|
-| `FIREBASE_PROJECT_ID` | yes | e.g. `zdoda-app` |
-| `FIREBASE_SERVICE_ACCOUNT` | yes | full JSON key of a service account with Editor, Firebase Admin, Secret Manager Admin, Service Account User |
-| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_APP_ID` | yes | from the Firebase web app config |
-| `ENCRYPTION_KEY` | yes | `openssl rand -hex 32` |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` | one recommended | AI answers + semantic search |
-| `APP_URL` | optional | custom domain, e.g. `https://app.zdoda.com` |
-| `VITE_FIREBASE_STORAGE_BUCKET` | optional | defaults to `<project>.firebasestorage.app` |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*`, `RESEND_API_KEY` | optional | billing and invite emails |
+The full list of secrets (required and optional) is in **docs/CREDENTIALS.md**. Only `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_APP_ID` and `ENCRYPTION_KEY` are required; everything else switches a feature from demo to live. When the LiveKit, Deepgram and voice-worker secrets exist, the workflow also deploys the voice worker to Cloud Run.
 
 Server keys are copied into Firebase Secret Manager on each run; they never land in the repo.
 

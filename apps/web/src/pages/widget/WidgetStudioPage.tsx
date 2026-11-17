@@ -39,6 +39,7 @@ export const WidgetStudioPage: React.FC = () => {
   const { data: ws } = useWorkspace();
   const widgets = useQuery({ queryKey: wsKey('widgets'), queryFn: () => api.get<{ items: (WidgetDTO & { embedCode: string })[] }>('/widgets') });
   const agents = useQuery({ queryKey: wsKey('agents'), queryFn: () => api.get<{ items: AgentDTO[] }>('/agents') });
+  const voiceReady = useQuery({ queryKey: ['voice-status'], queryFn: () => api.get<{ livekit: boolean }>('/voice/status'), staleTime: 60_000 });
   const [widgetId, setWidgetId] = useState<string | null>(null);
   const widget = widgets.data?.items.find((w) => w.id === widgetId) || widgets.data?.items[0];
   const [cfg, setCfg] = useState<WidgetConfigV1 | null>(null);
@@ -396,7 +397,7 @@ export const WidgetStudioPage: React.FC = () => {
             <SegmentedControl size="sm" value={device} onChange={setDevice} items={[{ value: 'desktop', label: 'Desktop', icon: <Monitor className="w-3.5 h-3.5" /> }, { value: 'mobile', label: 'Mobile', icon: <Smartphone className="w-3.5 h-3.5" /> }]} />
             <p className="text-[12px] text-[var(--ink-3)]">Live preview — chat with your agent here</p>
           </div>
-          <WidgetPreview config={cfg} agentId={widget.agentId} device={device} siteName={ws?.workspace.name || 'Your business'} />
+          <WidgetPreview config={cfg} agentId={widget.agentId} device={device} siteName={ws?.workspace.name || 'Your business'} voiceEnabled={Boolean(agent?.voice?.enabled && voiceReady.data?.livekit)} />
         </div>
       </div>
 

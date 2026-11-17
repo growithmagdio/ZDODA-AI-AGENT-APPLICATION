@@ -25,7 +25,7 @@ export async function workspaceSummary(wsId: string, wsData: FirebaseFirestore.D
   const [usage, agents] = await Promise.all([getUsage(wsId), paths.agents(wsId).count().get()]);
   const plan = getPlan(wsData.plan);
   return {
-    usage: { period: usage.period, messages: usage.messages, messageLimit: plan.messageLimit, agents: agents.data().count, agentLimit: plan.agentLimit },
+    usage: { period: usage.period, messages: usage.messages, messageLimit: plan.messageLimit, agents: agents.data().count, agentLimit: plan.agentLimit, voiceMinutes: Math.ceil(usage.voiceSeconds / 60), voiceMinuteLimit: Math.round(plan.voiceSecondsLimit / 60), numberLimit: plan.numberLimit },
     billing: billingOf(wsData),
   };
 }

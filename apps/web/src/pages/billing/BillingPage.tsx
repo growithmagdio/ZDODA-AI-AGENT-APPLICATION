@@ -9,7 +9,7 @@ import { useApiMutation, useCan, wsKey, fmt } from '../../lib/hooks';
 import { Page, LoadingBlock, ErrorBlock, SectionTitle } from '../../components/common/Page';
 import { useToast } from '../../context/ToastContext';
 
-type Resp = { billing: BillingDTO; usage: UsageDTO; plans: (PlanQuota & { purchasable: boolean })[] };
+type Resp = { billing: BillingDTO; usage: UsageDTO; plans: (PlanQuota & { purchasable: boolean; inrPurchasable?: boolean; priceInrMonthly?: number })[]; razorpay?: boolean };
 
 const STATUS: Record<BillingDTO['status'], { pill: 'live' | 'test_mode' | 'setup_required' | 'demo'; label: string }> = {
   active: { pill: 'live', label: 'Active' },
@@ -42,6 +42,28 @@ export const BillingPage: React.FC = () => {
   }, []);
 
   const checkout = useApiMutation((plan: string) => api.post<{ url: string }>('/billing/checkout', { plan, interval }), { onSuccess: (out) => window.location.assign(out.url) });
+  const razorpay = useApiMutation((plan: string) => api.post<{ keyId: string; subscriptionId: string; shortUrl: string | null }>('/billing/razorpay/subscribe', { plan }), {
+    onSuccess: async (out) => {
+      if (out.shortUrl) return window.location.assign(out.shortUrl);
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).Razorpay) return resolve();
+        const sc = document.createElement('script');
+        sc.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        sc.onload = () => resolve();
+        sc.onerror = () => reject(new Error('Razorpay failed to load'));
+        document.head.appendChild(sc);
+      });
+      new (window as any).Razorpay({
+        key: out.keyId,
+        subscription_id: out.subscriptionId,
+        name: 'Zdoda',
+        handler: () => {
+          toast('Payment received — your plan is updating');
+          setTimeout(() => qc.invalidateQueries(), 3000);
+        },
+      }).open();
+    },
+  });
   const portal = useApiMutation(() => api.post<{ url: string }>('/billing/portal'), { onSuccess: (out) => window.location.assign(out.url) });
   const activate = useApiMutation((plan: string) => api.post('/billing/mock/activate', { plan, interval: params.get('interval') || interval }), {
     success: 'Plan activated (demo billing)',
@@ -113,6 +135,16 @@ export const BillingPage: React.FC = () => {
             {pct >= 90 && <p className="text-[12px] text-[var(--danger)]">You're close to your limit. When it's reached, chats go to your inbox for a human reply.</p>}
           </div>
           <div className="flex justify-between text-[13px]">
+            <span className="text-[var(--ink-2)]">Voice minutes</span>
+            <span className="font-semibold text-[var(--ink)] tabular-nums">
+              {fmt(usage.voiceMinutes)} / {fmt(usage.voiceMinuteLimit)}
+            </span>
+          </div>
+          <div className="flex justify-between text-[13px]">
+            <span className="text-[var(--ink-2)]">Phone numbers included</span>
+            <span className="font-semibold text-[var(--ink)] tabular-nums">{usage.numberLimit}</span>
+          </div>
+          <div className="flex justify-between text-[13px]">
             <span className="text-[var(--ink-2)]">Agents</span>
             <span className="font-semibold text-[var(--ink)] tabular-nums">
               {usage.agents} / {usage.agentLimit > 9999 ? 'Unlimited' : usage.agentLimit}
@@ -164,6 +196,11 @@ export const BillingPage: React.FC = () => {
               ) : (
                 <Button variant={p.slug === 'pro' ? 'primary' : 'outline'} disabled={!manage || !p.purchasable} loading={checkout.isPending && checkout.variables === p.slug} onClick={() => (billing.provider === 'stripe' && billing.status === 'active' ? portal.mutate() : checkout.mutate(p.slug))} title={!manage ? 'Only the workspace owner can change the plan' : undefined}>
                   {billing.status === 'active' ? 'Switch plan' : 'Choose plan'}
+                </Button>
+              )}
+              {p.slug !== 'agency' && p.inrPurchasable && !isCurrent && (
+                <Button variant="ghost" size="sm" disabled={!manage} loading={razorpay.isPending && razorpay.variables === p.slug} onClick={() => razorpay.mutate(p.slug)}>
+                  Pay ₹{fmt(p.priceInrMonthly || 0)}/mo with Razorpay (UPI, cards)
                 </Button>
               )}
             </Card>

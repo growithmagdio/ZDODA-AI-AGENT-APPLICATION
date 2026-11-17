@@ -20,7 +20,19 @@ export interface WidgetMessage {
   authorName?: string | null;
 }
 
+export interface VoiceUi {
+  onState: (state: string, detail?: string) => void;
+  onTranscript: (lines: { id: string; role: 'user' | 'assistant'; text: string }[]) => void;
+}
+
+export interface VoiceController {
+  hangup: () => Promise<void>;
+  setMuted: (muted: boolean) => Promise<void>;
+}
+
 export interface MountWidgetOptions {
+  /** When set, a call button appears in the header and starts a voice call through this host function. */
+  voice?: { start: (ui: VoiceUi) => Promise<VoiceController> };
   mode: 'live' | 'preview';
   onSend?: (text: string) => Promise<WidgetReply>;
   /** Start opened (Studio preview). */
@@ -322,6 +334,21 @@ function styles(cfg: WidgetConfigV1, p: Palette, mode: MountWidgetOptions['mode'
     .zd-status { text-align: center; font-size: 12px; color: ${p.muted}; padding: 6px 12px; background: ${p.dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.03)'}; display: none; }
     .zd-status.on { display: block; }
 
+    .zd-panel > .zd-call { position: absolute; inset: 0; z-index: 5; display: none; flex-direction: column; align-items: center; justify-content: space-between; padding: 28px 20px 22px; background: ${p.dark ? 'rgba(10,10,14,.96)' : 'rgba(255,255,255,.97)'}; backdrop-filter: blur(12px); }
+    .zd-call.on { display: flex; }
+    .zd-orb { width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, ${p.primary}cc, ${p.primary}); box-shadow: 0 0 0 0 ${p.primary}55; margin-top: 18px; transition: transform .3s; }
+    .zd-call[data-state='speaking'] .zd-orb { animation: zd-pulse 1.1s ease-in-out infinite; }
+    .zd-call[data-state='listening'] .zd-orb { animation: zd-breathe 2.4s ease-in-out infinite; }
+    .zd-call[data-state='thinking'] .zd-orb { animation: zd-breathe .9s ease-in-out infinite; opacity: .8; }
+    .zd-call-status { margin-top: 18px; font-weight: 600; color: ${p.text}; }
+    .zd-call-lines { flex: 1; width: 100%; overflow-y: auto; margin: 14px 0; font-size: 13px; color: ${p.muted}; display: flex; flex-direction: column; gap: 6px; }
+    .zd-call-lines b { color: ${p.text}; font-weight: 600; }
+    .zd-call-actions { display: flex; gap: 14px; }
+    .zd-round { width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: ${p.dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.06)'}; color: ${p.text}; }
+    .zd-round.end { background: #FF3B30; color: #fff; }
+    .zd-round[aria-pressed='true'] { background: ${p.text}; color: ${p.surface}; }
+    @keyframes zd-pulse { 0% { box-shadow: 0 0 0 0 ${p.primary}66; transform: scale(1); } 70% { box-shadow: 0 0 0 26px ${p.primary}00; transform: scale(1.06); } 100% { box-shadow: 0 0 0 0 ${p.primary}00; transform: scale(1); } }
+    @keyframes zd-breathe { 0%, 100% { transform: scale(.94); } 50% { transform: scale(1.02); } }
     @keyframes zd-dot { 0%, 100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(-3px); opacity: 1; } }
     @keyframes zd-msg { from { opacity: 0; transform: translateY(6px) scale(.98); } }
     @keyframes zd-in-pop { from { opacity: 0; transform: scale(.6); } }
@@ -465,9 +492,23 @@ export function mountWidget(container: HTMLElement, config: WidgetConfigV1, opti
               <div class="zd-sub">${escapeHtml(cfg.brand.tagline || 'Typically replies instantly')}</div>
             </div>
             ${logo ? `<img class="zd-logo" src="${logo}" alt="">` : ''}
+            ${options.voice ? `<button class="zd-icon-btn" data-call aria-label="Call ${escapeHtml(cfg.brand.botName)}" title="Talk by voice">${svg('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>', 15)}</button>` : ''}
             ${always ? '' : `<button class="zd-icon-btn" data-close aria-label="Close chat">${svg('<path d="M18 6 6 18M6 6l12 12"/>', 16)}</button>`}
           </header>
           <div class="zd-status" aria-live="polite"></div>
+          ${
+            options.voice
+              ? `<div class="zd-call" role="region" aria-label="Voice call" data-state="connecting">
+                  <div class="zd-orb" aria-hidden="true"></div>
+                  <div class="zd-call-status" aria-live="polite">Connecting…</div>
+                  <div class="zd-call-lines"></div>
+                  <div class="zd-call-actions">
+                    <button class="zd-round" data-mute aria-pressed="false" aria-label="Mute microphone">${svg('<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>', 20)}</button>
+                    <button class="zd-round end" data-hangup aria-label="End call">${svg('<path d="M18 6 6 18M6 6l12 12"/>', 20)}</button>
+                  </div>
+                </div>`
+              : ''
+          }
           <div class="zd-messages" role="log" aria-live="polite">
             <div class="zd-welcome"><h3>${escapeHtml(cfg.texts.welcomeTitle)}</h3>${cfg.texts.disclaimer ? `<p>${escapeHtml(cfg.texts.disclaimer)}</p>` : ''}</div>
             <div class="zd-typing" aria-label="Typing"><i></i><i></i><i></i></div>
@@ -511,6 +552,14 @@ export function mountWidget(container: HTMLElement, config: WidgetConfigV1, opti
 
     els.launcher?.addEventListener('click', () => (isOpen ? close() : open()));
     q<HTMLElement>('[data-close]')?.addEventListener('click', close);
+    q<HTMLElement>('[data-call]')?.addEventListener('click', startCall);
+    q<HTMLElement>('[data-hangup]')?.addEventListener('click', () => endCall());
+    q<HTMLElement>('[data-mute]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget as HTMLElement;
+      const muted = btn.getAttribute('aria-pressed') !== 'true';
+      btn.setAttribute('aria-pressed', String(muted));
+      await call?.setMuted(muted).catch(() => {});
+    });
     q<HTMLElement>('.zd-backdrop')?.addEventListener('click', close);
     els.input.addEventListener('input', () => {
       els.send.disabled = !els.input.value.trim() || sending;
@@ -589,6 +638,57 @@ export function mountWidget(container: HTMLElement, config: WidgetConfigV1, opti
     }
   }
 
+  let call: VoiceController | null = null;
+  const STATE_LABEL: Record<string, string> = { connecting: 'Connecting…', listening: 'Listening', thinking: 'Thinking…', speaking: 'Speaking', ended: 'Call ended', error: 'Call failed' };
+
+  function callUi(state: string, detail?: string) {
+    const box = shadow.querySelector<HTMLElement>('.zd-call');
+    if (!box) return;
+    box.dataset.state = state;
+    const st = box.querySelector<HTMLElement>('.zd-call-status');
+    if (st) st.textContent = detail || STATE_LABEL[state] || state;
+  }
+
+  async function startCall() {
+    if (!options.voice || call) return;
+    const box = shadow.querySelector<HTMLElement>('.zd-call');
+    box?.classList.add('on');
+    const linesEl = box?.querySelector<HTMLElement>('.zd-call-lines');
+    if (linesEl) linesEl.innerHTML = '';
+    callUi('connecting');
+    try {
+      call = await options.voice.start({
+        onState: (s, d) => {
+          callUi(s, d);
+          if (s === 'ended') setTimeout(() => endCall(true), 1200);
+        },
+        onTranscript: (lines) => {
+          if (!linesEl) return;
+          linesEl.innerHTML = '';
+          lines.slice(-8).forEach((l) => {
+            const row = document.createElement('div');
+            const who = document.createElement('b');
+            who.textContent = l.role === 'user' ? 'You: ' : `${cfg.brand.botName}: `;
+            row.append(who, document.createTextNode(l.text));
+            linesEl.appendChild(row);
+          });
+          linesEl.scrollTop = linesEl.scrollHeight;
+        },
+      });
+    } catch (e: any) {
+      callUi('error', e?.message || 'Could not start the call');
+      call = null;
+      setTimeout(() => shadow.querySelector('.zd-call')?.classList.remove('on'), 2500);
+    }
+  }
+
+  async function endCall(alreadyEnded = false) {
+    const c = call;
+    call = null;
+    if (c && !alreadyEnded) await c.hangup().catch(() => {});
+    shadow.querySelector('.zd-call')?.classList.remove('on');
+  }
+
   function open() {
     if (alwaysOpen()) return;
     isOpen = true;
@@ -648,6 +748,7 @@ export function mountWidget(container: HTMLElement, config: WidgetConfigV1, opti
     },
     destroy() {
       clearTimeout(greetingTimer);
+      void endCall();
       mq?.removeEventListener?.('change', onScheme);
       shadow.innerHTML = '';
     },

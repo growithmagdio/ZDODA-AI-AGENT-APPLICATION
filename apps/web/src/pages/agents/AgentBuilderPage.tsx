@@ -2,14 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, StatusPill, SegmentedControl, Switch, TextField, Select, Badge } from '@zdoda/ui';
-import { ArrowLeft, Save, Rocket, AlertCircle } from 'lucide-react';
-import { MODEL_CATALOG, type AgentDTO, type KnowledgeSourceDTO, type LlmProvider } from '@zdoda/shared';
+import { ArrowLeft, Save, Rocket, AlertCircle, History, Wrench } from 'lucide-react';
+import { MODEL_CATALOG, TTS_VOICES, type AgentDTO, type KnowledgeSourceDTO, type LlmProvider, type ToolDTO } from '@zdoda/shared';
 import { api } from '../../lib/api';
 import { useApiMutation, useCan, useSystemStatus, wsKey } from '../../lib/hooks';
 import { Page, LoadingBlock, ErrorBlock, TextArea, Field } from '../../components/common/Page';
 import { ChatTester } from '../../components/common/ChatTester';
+import { VoiceTestPanel } from '../../components/voice/VoiceTestPanel';
+import { timeAgo } from '../../lib/hooks';
 
-type Tab = 'behavior' | 'knowledge' | 'model' | 'handoff';
+type Tab = 'behavior' | 'knowledge' | 'model' | 'voice' | 'tools' | 'handoff' | 'versions';
 
 const LANGS = ['auto', 'English', 'Spanish', 'French', 'German', 'Portuguese', 'Arabic', 'Hindi', 'Indonesian', 'Japanese', 'Chinese'];
 
@@ -20,6 +22,10 @@ export const AgentBuilderPage: React.FC = () => {
   const q = useQuery({ queryKey: wsKey('agent', id), queryFn: () => api.get<AgentDTO>(`/agents/${id}`) });
   const sources = useQuery({ queryKey: wsKey('knowledge'), queryFn: () => api.get<{ items: KnowledgeSourceDTO[] }>('/knowledge/sources') });
   const sys = useSystemStatus();
+  const voiceStatus = useQuery({ queryKey: ['voice-status'], queryFn: () => api.get<{ livekit: boolean; phoneReady: boolean }>('/voice/status'), staleTime: 60_000 });
+  const tools = useQuery({ queryKey: wsKey('tools'), queryFn: () => api.get<{ items: ToolDTO[] }>('/tools') });
+  const versions = useQuery({ queryKey: wsKey('agent-versions', id), queryFn: () => api.get<{ items: { id: string; version: number; publishedByEmail: string; createdAt: string }[] }>(`/agents/${id}/versions`) });
+  const restore = useApiMutation((v: number) => api.post(`/agents/${id}/versions/${v}/restore`), { success: 'Version restored into the draft — publish to make it live', invalidate: [['agent', id], ['agent-versions', id]] });
   const [tab, setTab] = useState<Tab>('behavior');
   const [draft, setDraft] = useState<AgentDTO | null>(null);
 
@@ -37,7 +43,7 @@ export const AgentBuilderPage: React.FC = () => {
   );
   const publish = useApiMutation((unpublish: boolean) => api.post<AgentDTO>(`/agents/${id}/publish`, { unpublish }), {
     success: (a) => (a.status === 'published' ? 'Agent published — it can now answer on your channels' : 'Agent moved back to draft'),
-    invalidate: [['agent', id], ['agents']],
+    invalidate: [['agent', id], ['agents'], ['agent-versions', id]],
   });
 
   if (q.isLoading || !draft) return <Page title="Agent">{q.error ? <ErrorBlock error={q.error} onRetry={() => q.refetch()} /> : <LoadingBlock rows={5} />}</Page>;
@@ -81,6 +87,7 @@ export const AgentBuilderPage: React.FC = () => {
       </Link>
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start">
         <Card className="space-y-5">
+          <div className="overflow-x-auto -mx-1 px-1">
           <SegmentedControl<Tab>
             value={tab}
             onChange={setTab}
@@ -88,9 +95,13 @@ export const AgentBuilderPage: React.FC = () => {
               { value: 'behavior', label: 'Behavior' },
               { value: 'knowledge', label: 'Knowledge' },
               { value: 'model', label: 'Model' },
+              { value: 'voice', label: 'Voice' },
+              { value: 'tools', label: 'Tools' },
               { value: 'handoff', label: 'Leads & handoff' },
+              { value: 'versions', label: 'History' },
             ]}
           />
+          </div>
           <fieldset disabled={!editable} className="space-y-4">
             {tab === 'behavior' && (
               <>
@@ -193,6 +204,120 @@ export const AgentBuilderPage: React.FC = () => {
               </div>
             )}
 
+
+            {tab === 'voice' && (
+              <div className="space-y-4">
+                <div className="divide-y divide-[var(--separator)]">
+                  <Field label="Voice agent" hint="Answer website voice calls and phone calls with this agent">
+                    <Switch checked={draft.voice.enabled} onCheckedChange={(v) => set('voice', { ...draft.voice, enabled: v })} />
+                  </Field>
+                  <Field label="Record calls" hint="Saves audio for the Inbox. Tell callers they are recorded where the law requires it.">
+                    <Switch checked={draft.voice.recordCalls} onCheckedChange={(v) => set('voice', { ...draft.voice, recordCalls: v })} />
+                  </Field>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[13px] font-medium text-[var(--ink-2)]">Voice</p>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {TTS_VOICES.map((v) => {
+                      const active = draft.voice.ttsProvider === v.provider && draft.voice.voiceId === v.id;
+                      return (
+                        <button
+                          type="button"
+                          key={v.provider + v.id}
+                          onClick={() => set('voice', { ...draft.voice, ttsProvider: v.provider, voiceId: v.id })}
+                          className={`text-left p-3 rounded-[12px] border ${active ? 'border-[var(--accent)] bg-[var(--accent-tint)]' : 'border-[var(--separator)]'}`}
+                        >
+                          <p className="text-[14px] font-semibold text-[var(--ink)]">{v.label}</p>
+                          <p className="text-[12px] text-[var(--ink-3)]">
+                            {v.accent} · {v.provider === 'elevenlabs' ? 'ElevenLabs' : v.provider === 'cartesia' ? 'Cartesia' : 'OpenAI'}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <TextField label="Or a custom voice ID" value={TTS_VOICES.some((v) => v.id === draft.voice.voiceId) ? '' : draft.voice.voiceId} onChange={(e) => set('voice', { ...draft.voice, voiceId: e.target.value })} placeholder="Paste a voice ID from ElevenLabs or Cartesia" />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <Select
+                    label="Caller language"
+                    value={draft.voice.sttLanguage}
+                    onChange={(e) => set('voice', { ...draft.voice, sttLanguage: e.target.value })}
+                    options={[
+                      { value: 'multi', label: 'Auto-detect (multilingual)' },
+                      { value: 'en', label: 'English' },
+                      { value: 'es', label: 'Spanish' },
+                      { value: 'fr', label: 'French' },
+                      { value: 'de', label: 'German' },
+                      { value: 'hi', label: 'Hindi' },
+                      { value: 'pt', label: 'Portuguese' },
+                      { value: 'ja', label: 'Japanese' },
+                    ]}
+                  />
+                  <TextField label="Transfer calls to (optional)" value={draft.voice.transferNumber} onChange={(e) => set('voice', { ...draft.voice, transferNumber: e.target.value })} placeholder="+15550102020" hint="Used when a caller asks for a person" />
+                </div>
+                <TextArea label="First thing the agent says (optional)" rows={2} value={draft.voice.firstMessage} onChange={(e) => set('voice', { ...draft.voice, firstMessage: e.target.value })} placeholder={draft.greeting} />
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <TextField label="Max call length (minutes)" type="number" min={1} max={60} value={draft.voice.maxCallMinutes} onChange={(e) => set('voice', { ...draft.voice, maxCallMinutes: Math.max(1, Math.min(60, Number(e.target.value) || 15)) })} />
+                  <TextField label="Hang up after silence (seconds)" type="number" min={5} max={120} value={draft.voice.idleSeconds} onChange={(e) => set('voice', { ...draft.voice, idleSeconds: Math.max(5, Math.min(120, Number(e.target.value) || 20)) })} />
+                </div>
+                <TextField
+                  label="Words to recognise (comma separated)"
+                  value={draft.voice.keywords.join(', ')}
+                  onChange={(e) => set('voice', { ...draft.voice, keywords: e.target.value.split(',').map((k) => k.trim()).filter(Boolean).slice(0, 50) })}
+                  placeholder="Invisalign, Smile Dental, Dr. Lee"
+                  hint="Brand names and terms the speech recogniser should expect"
+                />
+              </div>
+            )}
+
+            {tab === 'tools' && (
+              <div className="space-y-3">
+                <p className="text-[13px] text-[var(--ink-3)]">Actions this agent can take during a chat or call — booking, saving leads to a sheet, looking up orders. Create tools in <Link className="text-[var(--accent-ink)] font-semibold" to="/tools">Tools & Integrations</Link>.</p>
+                <label className="flex items-center gap-2 text-[14px] text-[var(--ink-2)]">
+                  <input type="radio" checked={!draft.toolIds.length} onChange={() => set('toolIds', [])} /> All enabled tools in this workspace
+                </label>
+                <label className="flex items-center gap-2 text-[14px] text-[var(--ink-2)]">
+                  <input type="radio" checked={draft.toolIds.length > 0} disabled={!tools.data?.items.length} onChange={() => tools.data?.items[0] && set('toolIds', [tools.data.items[0].id])} /> Only selected tools
+                </label>
+                {draft.toolIds.length > 0 &&
+                  tools.data?.items.map((t) => (
+                    <label key={t.id} className="ml-6 flex items-center gap-2 text-[13px] text-[var(--ink)]">
+                      <input type="checkbox" checked={draft.toolIds.includes(t.id)} onChange={(e) => set('toolIds', e.target.checked ? [...draft.toolIds, t.id] : draft.toolIds.filter((x) => x !== t.id))} />
+                      <Wrench className="w-3.5 h-3.5 text-[var(--ink-3)]" /> {t.name} <span className="text-[var(--ink-3)]">· {t.kind.replace('_', ' ')}</span>
+                    </label>
+                  ))}
+                {!tools.data?.items.length && <p className="text-[13px] text-[var(--ink-3)]">No tools yet.</p>}
+              </div>
+            )}
+
+            {tab === 'versions' && (
+              <div className="space-y-2">
+                <p className="text-[13px] text-[var(--ink-3)]">Every publish saves a version. Restore one into the draft, test it, then publish again.</p>
+                {!versions.data?.items.length ? (
+                  <p className="text-[13px] text-[var(--ink-3)]">No published versions yet.</p>
+                ) : (
+                  <ul className="divide-y divide-[var(--separator)]">
+                    {versions.data.items.map((v) => (
+                      <li key={v.id} className="flex items-center justify-between py-2.5">
+                        <div className="flex items-center gap-2">
+                          <History className="w-4 h-4 text-[var(--ink-3)]" />
+                          <span className="text-[14px] font-medium text-[var(--ink)]">Version {v.version}</span>
+                          <span className="text-[12px] text-[var(--ink-3)]">
+                            {v.publishedByEmail} · {timeAgo(v.createdAt)}
+                          </span>
+                        </div>
+                        {editable && (
+                          <button type="button" className="text-[13px] font-semibold text-[var(--accent-ink)]" onClick={() => restore.mutate(v.version)}>
+                            Restore
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             {tab === 'handoff' && (
               <div className="divide-y divide-[var(--separator)]">
                 <Field label="Capture leads" hint="Ask interested visitors for their email or phone and save them to Leads">
@@ -216,7 +341,11 @@ export const AgentBuilderPage: React.FC = () => {
           </fieldset>
         </Card>
         <div className="xl:sticky xl:top-20 h-[640px]">
-          <ChatTester agentId={id} greeting={q.data?.greeting} disabled={Boolean(dirty)} />
+          {tab === 'voice' ? (
+            <VoiceTestPanel agentId={id} disabled={Boolean(dirty)} ready={Boolean(voiceStatus.data?.livekit)} />
+          ) : (
+            <ChatTester agentId={id} greeting={q.data?.greeting} disabled={Boolean(dirty)} />
+          )}
           {dirty && <p className="text-[12px] text-[var(--ink-3)] mt-2 text-center">Save your changes to test them.</p>}
         </div>
       </div>
