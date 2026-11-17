@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// Zdoda security model
+// - All writes go through the API (Cloud Functions + Admin SDK), which enforces roles (can()).
+// - Signed-in members may READ their own workspace data directly (for realtime views).
+// - Secrets, invites, widget keys and knowledge vectors are server-only.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMember(ws) {
+      return signedIn() && exists(/databases/$(database)/documents/memberships/$(ws + '_' + request.auth.uid));
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /memberships/{id} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /workspaces/{ws} {
+      allow read: if isMember(ws);
+      allow write: if false;
+
+      match /knowledgeChunks/{doc} { allow read, write: if false; }
+      match /auditLog/{doc} { allow read, write: if false; }
+      match /{sub=**} {
+        allow read: if isMember(ws);
+        allow write: if false;
+      }
+    }
+
+    match /workspaceSecrets/{rest=**} { allow read, write: if false; }
+    match /invites/{token} { allow read, write: if false; }
+    match /widgetKeys/{id} { allow read, write: if false; }
+  }
+}

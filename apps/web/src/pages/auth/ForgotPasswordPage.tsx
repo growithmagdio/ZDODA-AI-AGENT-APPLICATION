@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, TextField, Card } from '@zdoda/ui';
-import { apiRequest } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 
 export const ForgotPasswordPage: React.FC = () => {
+  const { resetPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -12,10 +13,7 @@ export const ForgotPasswordPage: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await apiRequest('/auth/forgot-password', {
-        method: 'POST',
-        body: JSON.stringify({ email }),
-      });
+      await resetPassword(email);
       setSubmitted(true);
     } finally {
       setLoading(false);

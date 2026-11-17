@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Button, TextField, Card } from '@zdoda/ui';
-import { apiRequest, ApiError } from '../../lib/api';
+import { confirmPasswordReset } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
+import { authErrorMessage } from '../../context/AuthContext';
 
 export const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token') || '';
+  const token = searchParams.get('oobCode') || searchParams.get('token') || '';
   const navigate = useNavigate();
 
   const [newPassword, setNewPassword] = useState('');
@@ -19,18 +21,13 @@ export const ResetPasswordPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await apiRequest('/auth/reset-password', {
-        method: 'POST',
-        body: JSON.stringify({ token, newPassword }),
-      });
+      if (newPassword.length < 8) throw Object.assign(new Error('Please use at least 8 characters.'), { code: '' });
+      await confirmPasswordReset(auth, token, newPassword);
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Password reset failed. Token may be expired.');
-      }
+      const code = (err as { code?: string }).code;
+      setError(code === 'auth/expired-action-code' || code === 'auth/invalid-action-code' ? 'This reset link has expired or was already used. Request a new one.' : authErrorMessage(err));
     } finally {
       setLoading(false);
     }

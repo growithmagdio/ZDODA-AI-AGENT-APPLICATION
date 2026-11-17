@@ -35,3 +35,12 @@ generated/
 # Playwright & test reports
 playwright-report/
 test-results/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+storage-debug.log
+.emulator-data/
+apps/web/public/zdoda-widget.js

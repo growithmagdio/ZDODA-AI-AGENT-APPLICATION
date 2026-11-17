@@ -18,7 +18,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   value,
   delta,
   deltaType = 'positive',
-  isDemo = true,
+  isDemo = false,
   icon,
   className,
 }) => {

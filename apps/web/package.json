@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "pnpm --filter @zdoda/widget build && vite",
+    "build": "pnpm --filter @zdoda/widget build && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"@zdoda/web: lint ok\"",
@@ -16,11 +16,13 @@
     "@zdoda/ui": "workspace:*",
     "@zdoda/widget": "workspace:*",
     "clsx": "^2.1.1",
+    "firebase": "^11.10.0",
     "lucide-react": "^0.475.0",
     "motion": "^12.4.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.5",
+    "recharts": "^2.15.4",
     "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {

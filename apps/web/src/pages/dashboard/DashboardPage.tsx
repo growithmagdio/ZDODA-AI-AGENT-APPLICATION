@@ -1,171 +1,120 @@
 import React from 'react';
-import { LargeTitleHeader, StatCard, Card, StatusPill, Button } from '@zdoda/ui';
-import { MessageSquare, CalendarCheck, Sparkles, Shield, Radio, Bot, Plus } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { StatCard, Card, StatusPill, Button, Avatar } from '@zdoda/ui';
+import { MessageSquare, Sparkles, Shield, UserRound, CheckCircle2, Circle, ArrowRight, Globe, MessageCircle, Phone } from 'lucide-react';
+import type { ConversationDTO, WidgetDTO, AgentDTO } from '@zdoda/shared';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../lib/api';
+import { useSystemStatus, useWorkspace, wsKey, timeAgo, fmt } from '../../lib/hooks';
+import { Page, SectionTitle, LoadingBlock } from '../../components/common/Page';
+import { VolumeChart } from '../../components/common/VolumeChart';
+import { useAnalytics, deltaProps } from '../analytics/AnalyticsPage';
 
 export const DashboardPage: React.FC = () => {
-  const { activeWorkspace } = useAuth();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { data: ws } = useWorkspace();
+  const sys = useSystemStatus();
+  const analytics = useAnalytics(30);
+  const setup = useQuery({ queryKey: wsKey('setup'), queryFn: () => api.get<{ steps: { key: string; title: string; description: string; done: boolean; to: string }[]; completed: number }>('/workspaces/current/setup') });
+  const recent = useQuery({ queryKey: wsKey('conversations', 'recent'), queryFn: () => api.get<{ items: ConversationDTO[] }>('/conversations'), refetchInterval: 15_000 });
+  const widgets = useQuery({ queryKey: wsKey('widgets'), queryFn: () => api.get<{ items: WidgetDTO[] }>('/widgets') });
+  const agents = useQuery({ queryKey: wsKey('agents'), queryFn: () => api.get<{ items: AgentDTO[] }>('/agents') });
+
+  const k = analytics.data?.kpis;
+  const widget = widgets.data?.items[0];
+  const agent = agents.data?.items.find((a) => a.id === widget?.agentId);
+  const webLive = Boolean(widget?.publishedVersion && agent?.status === 'published');
+  const allDone = setup.data && setup.data.completed === setup.data.steps.length;
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto py-4">
-      {/* Large Title Header */}
-      <LargeTitleHeader
-        title="Dashboard"
-        subtitle={`Real-time omnichannel AI agent performance for ${activeWorkspace?.name || 'Smile Dental Clinic'}.`}
-        action={
-          <Button
-            variant="primary"
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => window.dispatchEvent(new CustomEvent('zdoda:open-onboarding'))}
-          >
-            Setup Checklist
-          </Button>
-        }
-      />
-
-      {/* Row 1: KPI Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Conversations"
-          value="2,842"
-          delta="+12.4%"
-          isDemo={true}
-          icon={<MessageSquare className="w-4 h-4" />}
-        />
-        <StatCard
-          title="Appointments Booked"
-          value="348"
-          delta="+8.1%"
-          isDemo={true}
-          icon={<CalendarCheck className="w-4 h-4" />}
-        />
-        <StatCard
-          title="Qualified Leads"
-          value="182"
-          delta="+15.3%"
-          isDemo={true}
-          icon={<Sparkles className="w-4 h-4" />}
-        />
-        <StatCard
-          title="Resolution Rate"
-          value="91.2%"
-          delta="+2.0%"
-          isDemo={true}
-          icon={<Shield className="w-4 h-4" />}
-        />
-      </div>
-
-      {/* Row 2: Grid with Volume Breakdown & Active Channels */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column (2 cols): Conversation Volume Chart */}
-        <Card className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-[17px] font-bold text-[var(--ink)] tracking-tight">
-                Conversation Volume by Channel
-              </h3>
-              <p className="text-[13px] text-[var(--ink-3)]">Last 30 days omnichannel traffic</p>
-            </div>
-            <StatusPill status="demo" label="Demo Data" />
-          </div>
-
-          <div className="h-64 flex flex-col items-center justify-center rounded-[12px] bg-[var(--surface-2)] border border-[var(--separator)]/60 text-center p-6 space-y-3">
-            <Radio className="w-10 h-10 text-[var(--accent)] animate-pulse" />
-            <p className="text-[15px] font-semibold text-[var(--ink)]">
-              Interactive Recharts Breakdown
-            </p>
-            <p className="text-[13px] text-[var(--ink-3)] max-w-sm">
-              Stacked bar chart tracking Web Chat, WhatsApp, and Voice inbound call volume (Connecting live in Phase 2).
-            </p>
-          </div>
+    <Page title={`Hi ${user?.name?.split(' ').find((w) => !w.endsWith('.')) || 'there'} 👋`} subtitle={`Here's how ${ws?.workspace.name || 'your workspace'} is doing over the last 30 days.`}>
+      {sys.data && !sys.data.llm.live && (
+        <Card variant="inset" className="flex flex-wrap items-center gap-3">
+          <StatusPill status="demo" label="Demo AI" />
+          <p className="text-[13px] text-[var(--ink-2)] flex-1 min-w-[240px]">
+            No AI provider key is set on the server yet, so agents answer with the built-in demo model (it quotes your knowledge base). Add an Anthropic, OpenAI or Gemini key to get full answers.
+          </p>
         </Card>
+      )}
 
-        {/* Right Column: Active Channels */}
+      {setup.data && !allDone && (
         <Card className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[17px] font-bold text-[var(--ink)] tracking-tight">
-              Active Channels
-            </h3>
-            <span className="text-[12px] text-[var(--ink-3)] font-medium">3 configured</span>
+          <SectionTitle title="Get your agent live" description={`${setup.data.completed} of ${setup.data.steps.length} done`} />
+          <div className="h-1.5 rounded-full bg-[var(--surface-2)] overflow-hidden">
+            <div className="h-full bg-[var(--accent)] rounded-full transition-all" style={{ width: `${(setup.data.completed / setup.data.steps.length) * 100}%` }} />
           </div>
-
-          <div className="space-y-3">
-            <div className="p-3.5 rounded-[12px] bg-[var(--surface-2)] border border-[var(--separator)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[var(--accent-tint)] text-[var(--accent-ink)] flex items-center justify-center font-bold">
-                  W
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {setup.data.steps.map((s) => (
+              <Link key={s.key} to={s.to} className={`p-3.5 rounded-[12px] border transition-colors ${s.done ? 'border-[var(--separator)] bg-[var(--surface-2)]' : 'border-[var(--separator)] hover:border-[var(--accent)]/50'}`}>
+                <div className="flex items-center gap-2">
+                  {s.done ? <CheckCircle2 className="w-4 h-4 text-[var(--success)]" /> : <Circle className="w-4 h-4 text-[var(--ink-3)]" />}
+                  <p className={`text-[13px] font-semibold ${s.done ? 'text-[var(--ink-3)] line-through' : 'text-[var(--ink)]'}`}>{s.title}</p>
                 </div>
-                <div>
-                  <p className="text-[13px] font-semibold text-[var(--ink)]">Website Widget</p>
-                  <p className="text-[11px] text-[var(--ink-3)]">Dental Assistant</p>
-                </div>
-              </div>
-              <StatusPill status="live" />
-            </div>
-
-            <div className="p-3.5 rounded-[12px] bg-[var(--surface-2)] border border-[var(--separator)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-                  WA
-                </div>
-                <div>
-                  <p className="text-[13px] font-semibold text-[var(--ink)]">WhatsApp Business</p>
-                  <p className="text-[11px] text-[var(--ink-3)]">+1 (555) 019-9281</p>
-                </div>
-              </div>
-              <StatusPill status="test_mode" />
-            </div>
-
-            <div className="p-3.5 rounded-[12px] bg-[var(--surface-2)] border border-[var(--separator)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
-                  V
-                </div>
-                <div>
-                  <p className="text-[13px] font-semibold text-[var(--ink)]">Inbound Voice AI</p>
-                  <p className="text-[11px] text-[var(--ink-3)]">Clinic Phone System</p>
-                </div>
-              </div>
-              <StatusPill status="demo" />
-            </div>
+                <p className="text-[12px] text-[var(--ink-3)] mt-1">{s.description}</p>
+              </Link>
+            ))}
           </div>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="Conversations" value={k ? fmt(k.conversations.value) : '—'} {...(k ? deltaProps(k.conversations.delta) : {})} icon={<MessageSquare className="w-4 h-4" />} />
+        <StatCard title="Leads captured" value={k ? fmt(k.leads.value) : '—'} {...(k ? deltaProps(k.leads.delta) : {})} icon={<Sparkles className="w-4 h-4" />} />
+        <StatCard title="Resolved by AI" value={k ? `${k.aiResolution.value}%` : '—'} icon={<Shield className="w-4 h-4" />} />
+        <StatCard title="Messages this month" value={ws ? `${fmt(ws.usage.messages)} / ${fmt(ws.usage.messageLimit)}` : '—'} icon={<UserRound className="w-4 h-4" />} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 space-y-4">
+          <SectionTitle title="Conversations per day" description="Last 30 days" right={<Button size="sm" variant="ghost" onClick={() => navigate('/analytics')}>Details</Button>} />
+          {analytics.data ? <VolumeChart data={analytics.data.series} height={240} /> : <LoadingBlock rows={3} />}
+        </Card>
+        <Card className="space-y-3">
+          <SectionTitle title="Channels" />
+          <ChannelRow icon={<Globe className="w-4 h-4" />} name="Website chat" detail={agent?.name || '—'} status={webLive ? 'live' : 'setup_required'} label={webLive ? 'Live' : 'Not live'} to="/channels" />
+          <ChannelRow icon={<MessageCircle className="w-4 h-4" />} name="WhatsApp" detail="Coming soon" status="coming_soon" to="/channels" />
+          <ChannelRow icon={<Phone className="w-4 h-4" />} name="Voice AI" detail="Coming soon" status="coming_soon" to="/channels" />
         </Card>
       </div>
 
-      {/* Row 3: Recent Activity Feed */}
-      <Card className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[17px] font-bold text-[var(--ink)] tracking-tight">
-            Recent Conversations & Inquiries
-          </h3>
-          <span className="text-[12px] text-[var(--ink-3)]">Live syncing</span>
-        </div>
-
-        <div className="divide-y divide-[var(--separator)]">
-          {[
-            { name: 'Sarah M.', channel: 'Website Chat', query: 'I would like to book a dental checkup and teeth cleaning next Tuesday.', time: '5m ago' },
-            { name: 'John D.', channel: 'WhatsApp', query: 'What is the price for porcelain dental veneers?', time: '22m ago' },
-            { name: 'Priya S.', channel: 'Website Chat', query: 'Can I reschedule my root canal follow-up appointment?', time: '1h ago' },
-            { name: 'Mike R.', channel: 'Inbound Call', query: 'Do you accept Delta Dental insurance plans?', time: '3h ago' },
-          ].map((item, idx) => (
-            <div key={idx} className="py-3 flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-[var(--surface-inset)] flex items-center justify-center text-[12px] font-bold text-[var(--ink)] shrink-0 mt-0.5">
-                  {item.name.charAt(0)}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[13px] font-semibold text-[var(--ink)]">{item.name}</p>
-                    <span className="text-[11px] text-[var(--ink-3)]">• {item.channel}</span>
+      <Card className="space-y-2">
+        <SectionTitle title="Recent conversations" right={<Button size="sm" variant="ghost" icon={<ArrowRight className="w-4 h-4" />} onClick={() => navigate('/inbox')}>Open inbox</Button>} />
+        {recent.isLoading ? (
+          <LoadingBlock rows={3} />
+        ) : !recent.data?.items.length ? (
+          <p className="text-[13px] text-[var(--ink-3)] py-4">No conversations yet. Publish your widget and add it to your website to start receiving chats.</p>
+        ) : (
+          <div className="divide-y divide-[var(--separator)]">
+            {recent.data.items.slice(0, 6).map((c) => {
+              const name = c.contact?.name || c.contact?.email || `Visitor ${c.id.slice(0, 4).toUpperCase()}`;
+              return (
+                <Link to="/inbox" key={c.id} className="py-3 flex items-center gap-3 hover:bg-[var(--surface-2)] -mx-2 px-2 rounded-lg">
+                  <Avatar name={name} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-[var(--ink)]">{name}</p>
+                    <p className="text-[13px] text-[var(--ink-2)] truncate">{c.lastMessage}</p>
                   </div>
-                  <p className="text-[13px] text-[var(--ink-2)] truncate mt-0.5">{item.query}</p>
-                </div>
-              </div>
-              <span className="text-[11px] text-[var(--ink-3)] shrink-0">{item.time}</span>
-            </div>
-          ))}
-        </div>
+                  {c.status === 'handoff' && <StatusPill status="test_mode" label="Needs human" />}
+                  <span className="text-[11px] text-[var(--ink-3)] shrink-0">{timeAgo(c.lastMessageAt)}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </Card>
-    </div>
+    </Page>
   );
 };
+
+const ChannelRow: React.FC<{ icon: React.ReactNode; name: string; detail: string; status: 'live' | 'setup_required' | 'coming_soon'; label?: string; to: string }> = ({ icon, name, detail, status, label, to }) => (
+  <Link to={to} className="p-3 rounded-[12px] bg-[var(--surface-2)] border border-[var(--separator)] flex items-center gap-3">
+    <div className="w-8 h-8 rounded-lg bg-[var(--accent-tint)] text-[var(--accent-ink)] flex items-center justify-center">{icon}</div>
+    <div className="flex-1 min-w-0">
+      <p className="text-[13px] font-semibold text-[var(--ink)]">{name}</p>
+      <p className="text-[11px] text-[var(--ink-3)] truncate">{detail}</p>
+    </div>
+    <StatusPill status={status} label={label} />
+  </Link>
+);

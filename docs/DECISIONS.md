@@ -82,3 +82,29 @@ This file is an append-only log of significant technical and architectural decis
 - **Consequences:**
   Eliminates visual clutter, preserves complete dashboard legibility, and maintains responsive integrity across all device viewports.
 
+
+---
+
+## ADR-0012: Move the backend to Firebase (Auth, Firestore, Storage, Cloud Functions)
+
+- **Date:** 2026-11-03
+- **Status:** Accepted — supersedes ADR-0003 (Prisma tenancy extension) and the Postgres/pgvector/BullMQ plan.
+- **Context:** The product owner chose Firebase as the database and hosting platform for the chat MVP.
+- **Decision:**
+  - **Auth:** Firebase Authentication (email + password, Google). The web app sends the Firebase ID token as `Authorization: Bearer`; the API verifies it with the Admin SDK.
+  - **API:** one Express app (`apps/functions`) deployed as the 2nd-gen HTTPS function `api`. Firebase Hosting rewrites `/api/**` to it, so the dashboard and the widget call the same origin.
+  - **Data:** Cloud Firestore. Every tenant document lives under `workspaces/{workspaceId}/…`. Membership lives in `memberships/{workspaceId}_{uid}` and is checked by `requireWorkspace` on every request (tenancy boundary; cross-tenant access returns 404). Roles are enforced by `can()`.
+  - **RAG:** chunks are stored in `workspaces/{ws}/knowledgeChunks` with a 768-dim `embedding` vector field and queried with Firestore KNN vector search (`findNearest`, cosine). A brute-force fallback runs if the index is still building.
+  - **Ingestion:** in production a Firestore trigger (`ingestKnowledge`) indexes sources when they are queued; locally ingestion runs inline.
+  - **Files:** Cloud Storage; uploads go through the API (type/size checks). Widget images are served with download tokens.
+  - **Security rules:** clients cannot write anything directly; members can read their own workspace (for future realtime views); secrets, invites, widget keys and vectors are server-only.
+  - **Providers:** LLM (Anthropic / OpenAI / Gemini / demo), embeddings (OpenAI / Gemini / demo hashing), payments (Stripe / demo), email (Resend / log). Missing keys fall back to clearly-labelled demo adapters; `/system/status` drives the status pills.
+- **Consequences:** No Postgres, Redis or Prisma. `apps/api` and `packages/db` were removed.
+
+## ADR-0013: Local development without the Java emulators
+
+- **Date:** 2026-11-03
+- **Status:** Accepted
+- **Context:** The Firestore and Storage emulators need Java jars downloaded from Google. Some environments (CI sandboxes, locked-down networks) cannot download them.
+- **Decision:** `LOCAL_DATA=memory` runs the API against an in-memory Firestore adapter (`apps/functions/src/lib/memory-firestore.ts`, persisted to `.emulator-data/firestore.json`) and a local-folder Storage adapter, with only the (pure Node) Auth emulator. It implements exactly the Admin SDK subset the code uses. It refuses to run with `NODE_ENV=production`. The normal path is still the full Firebase Emulator Suite.
+- **Consequences:** The integration tests run anywhere (`pnpm --filter @zdoda/functions test` with the Auth emulator). Queries are written to need only single-field indexes plus the declared vector index, so behaviour matches real Firestore.

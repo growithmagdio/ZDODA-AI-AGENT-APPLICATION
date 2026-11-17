@@ -17,26 +17,35 @@ import { OnboardingPage } from './pages/onboarding/OnboardingPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { DesignPage } from './pages/design/DesignPage';
 import { FeaturePlaceholderPage } from './pages/placeholder/FeaturePlaceholderPage';
-import {
-  Bot,
-  BookOpen,
-  Wrench,
-  Radio,
-  Palette,
-  Inbox,
-  Phone,
-  BarChart3,
-  Boxes,
-  Users,
-  CreditCard,
-  Settings,
-} from 'lucide-react';
+import { Phone } from 'lucide-react';
+import { ToastProvider } from './context/ToastContext';
+import { AgentsPage } from './pages/agents/AgentsPage';
+import { AgentBuilderPage } from './pages/agents/AgentBuilderPage';
+import { KnowledgePage } from './pages/knowledge/KnowledgePage';
+import { ToolsPage } from './pages/tools/ToolsPage';
+import { ChannelsPage } from './pages/channels/ChannelsPage';
+import { WidgetStudioPage } from './pages/widget/WidgetStudioPage';
+import { InboxPage } from './pages/inbox/InboxPage';
+import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
+import { TeamPage } from './pages/team/TeamPage';
+import { BillingPage } from './pages/billing/BillingPage';
+import { SettingsPage } from './pages/settings/SettingsPage';
+import { InvitePage } from './pages/invite/InvitePage';
+import { AuthActionPage } from './pages/auth/AuthActionPage';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (count, err: any) => count < 2 && !(err?.status >= 400 && err?.status < 500),
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
       <AuthProvider>
         <BrowserRouter>
           <Routes>
@@ -47,6 +56,8 @@ export const App: React.FC = () => {
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/auth/action" element={<AuthActionPage />} />
+            <Route path="/invite/:token" element={<InvitePage />} />
 
             {/* 2. Public-Only Routes (Guests only; if authenticated, redirects to /dashboard) */}
             <Route element={<PublicOnlyRoute />}>
@@ -60,128 +71,28 @@ export const App: React.FC = () => {
               <Route path="/onboarding" element={<OnboardingPage />} />
               <Route path="/design" element={<DesignPage />} />
 
-              {/* Phased Feature Placeholders with Honest Status */}
-              <Route
-                path="/agents"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Agent Builder & Catalog"
-                    description="Build, tune, and publish multi-channel conversational agents with model configuration, streaming test sandbox, and prompt editing."
-                    phase={3}
-                    icon={<Bot className="w-8 h-8" />}
-                  />
-                }
-              />
-              <Route
-                path="/knowledge"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Knowledge Base & Ingestion"
-                    description="Upload PDFs, sync website sitemaps, and train your agents with BullMQ RAG chunking and pgvector search."
-                    phase={3}
-                    icon={<BookOpen className="w-8 h-8" />}
-                  />
-                }
-              />
-              <Route
-                path="/tools"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Tools & Integrations"
-                    description="Connect Google Calendar, Slack, HubSpot, Make, n8n, and custom REST API endpoints with AES-256-GCM token encryption."
-                    phase={5}
-                    icon={<Wrench className="w-8 h-8" />}
-                  />
-                }
-              />
-              <Route
-                path="/channels"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Channels Directory"
-                    description="Configure Website Chat, WhatsApp Cloud API, and Twilio Inbound Voice telephony from one dashboard."
-                    phase={5}
-                    icon={<Radio className="w-8 h-8" />}
-                  />
-                }
-              />
-              <Route
-                path="/widget-studio"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Widget Studio"
-                    description="Zdoda's core differentiator: No-code visual editor with live sub-100ms Shadow DOM runtime preview, theme presets, and background shaders."
-                    phase={4}
-                    icon={<Palette className="w-8 h-8" />}
-                  />
-                }
-              />
-              <Route
-                path="/inbox"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Omnichannel Inbox"
-                    description="Live conversation viewer with audio player, contact dossiers, and instant human takeover."
-                    phase={5}
-                    icon={<Inbox className="w-8 h-8" />}
-                  />
-                }
-              />
+              <Route path="/agents" element={<AgentsPage />} />
+              <Route path="/agents/:id" element={<AgentBuilderPage />} />
+              <Route path="/knowledge" element={<KnowledgePage />} />
+              <Route path="/tools" element={<ToolsPage />} />
+              <Route path="/channels" element={<ChannelsPage />} />
+              <Route path="/widget-studio" element={<WidgetStudioPage />} />
+              <Route path="/inbox" element={<InboxPage />} />
               <Route
                 path="/phone-numbers"
                 element={
                   <FeaturePlaceholderPage
                     title="Phone Numbers"
-                    description="Search, buy, port, and assign telephony phone numbers directly to conversational voice agents."
+                    description="Buy or port a phone number and let your agent answer calls with a natural voice. Voice AI is the next release."
                     phase={5}
                     icon={<Phone className="w-8 h-8" />}
                   />
                 }
               />
-              <Route
-                path="/analytics"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Analytics & Reports"
-                    description="Omnichannel volume breakdowns, resolution rates, agent performance leaderboards, and CSV exports."
-                    phase={6}
-                    icon={<BarChart3 className="w-8 h-8" />}
-                  />
-                }
-              />
-              <Route
-                path="/team"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Team & Collaboration"
-                    description="Manage workspace members, assign RBAC roles (Owner, Admin, Builder, Agent, Viewer), and inspect the audit log."
-                    phase={6}
-                    icon={<Users className="w-8 h-8" />}
-                  />
-                }
-              />
-              <Route
-                path="/billing"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Billing & Subscription"
-                    description="Stripe Checkout, customer portal, invoices, plan quotas, and usage meter tracking."
-                    phase={2}
-                    icon={<CreditCard className="w-8 h-8" />}
-                  />
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Settings & Accessibility"
-                    description="User profile, security sessions, and accessibility settings (Reduce Motion, Reduce Transparency, Theme preferences)."
-                    phase={6}
-                    icon={<Settings className="w-8 h-8" />}
-                  />
-                }
-              />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/team" element={<TeamPage />} />
+              <Route path="/billing" element={<BillingPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
 
             {/* 4. Catch-all Designed 404 Route (Never redirects to /login) */}
@@ -189,6 +100,7 @@ export const App: React.FC = () => {
           </Routes>
         </BrowserRouter>
       </AuthProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 };
