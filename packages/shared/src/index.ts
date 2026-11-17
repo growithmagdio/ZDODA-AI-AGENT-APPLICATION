@@ -108,6 +108,9 @@ export interface PlanQuota {
   messageLimit: number;
   voiceSecondsLimit: number;
   agentLimit: number;
+  numberLimit: number;
+  seatLimit: number;
+  priceInrMonthly: number;
   features: string[];
 }
 
@@ -122,6 +125,9 @@ export const DEMO_PLANS: PlanQuota[] = [
     messageLimit: 1000,
     voiceSecondsLimit: 0,
     agentLimit: 1,
+    numberLimit: 0,
+    seatLimit: 1,
+    priceInrMonthly: 3999,
     features: ['1 AI Agent', 'Website Chat Widget', 'Basic Knowledge Base', 'Essential Integrations', '1,000 messages / mo'],
   },
   {
@@ -134,7 +140,10 @@ export const DEMO_PLANS: PlanQuota[] = [
     messageLimit: 10000,
     voiceSecondsLimit: 3600,
     agentLimit: 5,
-    features: ['5 AI Agents', 'Website Chat (WhatsApp soon)', 'Inbound Voice AI (soon)', 'Advanced RAG Knowledge', 'Tools & Integrations', '10,000 messages / mo'],
+    numberLimit: 1,
+    seatLimit: 3,
+    priceInrMonthly: 7999,
+    features: ['5 AI Agents', 'Website Chat + WhatsApp', 'Voice AI · 60 min · 1 number', 'Advanced RAG Knowledge', 'Tools & Integrations', '10,000 messages / mo'],
   },
   {
     planId: 'plan_business',
@@ -146,6 +155,9 @@ export const DEMO_PLANS: PlanQuota[] = [
     messageLimit: 50000,
     voiceSecondsLimit: 18000,
     agentLimit: 999999,
+    numberLimit: 3,
+    seatLimit: 10,
+    priceInrMonthly: 15999,
     features: ['Unlimited Agents', 'White-Label Widget', 'Multi-Workspace Support', 'Custom Integrations', 'Priority Support', '50,000 messages / mo'],
   },
   {
@@ -158,6 +170,9 @@ export const DEMO_PLANS: PlanQuota[] = [
     messageLimit: 250000,
     voiceSecondsLimit: 90000,
     agentLimit: 999999,
+    numberLimit: 10,
+    seatLimit: 50,
+    priceInrMonthly: 0,
     features: ['Client Sub-Workspaces', 'White-Label & Custom Domains', 'Agency Consolidated Billing', 'Dedicated Success Architect'],
   },
 ];
@@ -362,6 +377,24 @@ export const AgentInputSchema = z.object({
   handoffMessage: z.string().max(500).default('Sure — I have notified our team. Someone will reply here shortly.'),
   leadCapture: z.boolean().default(true),
   bookingUrl: z.string().url().optional().or(z.literal('')).default(''),
+  voice: z
+    .object({
+      enabled: z.boolean().default(false),
+      ttsProvider: z.enum(['elevenlabs', 'cartesia', 'openai']).default('elevenlabs'),
+      voiceId: z.string().max(120).default(''),
+      sttLanguage: z.string().max(20).default('multi'),
+      firstMessage: z.string().max(500).default(''),
+      maxCallMinutes: z.number().int().min(1).max(60).default(15),
+      idleSeconds: z.number().int().min(5).max(120).default(20),
+      transferNumber: z.string().max(20).default(''),
+      recordCalls: z.boolean().default(false),
+      endCallPhrases: z.array(z.string().max(60)).max(10).default(['goodbye', 'bye', 'that is all']),
+      keywords: z.array(z.string().max(40)).max(50).default([]),
+      backgroundSound: z.boolean().default(false),
+    })
+    .default({}),
+  variables: z.record(z.string().max(500)).default({}),
+  toolIds: z.array(z.string()).default([]),
 });
 export type AgentInput = z.infer<typeof AgentInputSchema>;
 
@@ -468,6 +501,9 @@ export interface UsageDTO {
   messageLimit: number;
   agents: number;
   agentLimit: number;
+  voiceMinutes: number;
+  voiceMinuteLimit: number;
+  numberLimit: number;
 }
 
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired';
@@ -513,3 +549,174 @@ export interface IntegrationDTO {
   lastError?: string | null;
   createdAt: string;
 }
+
+// ============================================================================
+// Voice, phone numbers, WhatsApp, tools, campaigns, API keys
+// ============================================================================
+export type VoiceSettings = AgentInput['voice'];
+
+export const TTS_VOICES: { provider: 'elevenlabs' | 'cartesia' | 'openai'; id: string; label: string; accent: string }[] = [
+  { provider: 'elevenlabs', id: '21m00Tcm4TlvDq8ikWAM', label: 'Rachel', accent: 'American · calm' },
+  { provider: 'elevenlabs', id: 'EXAVITQu4vr4xnSDxMaL', label: 'Sarah', accent: 'American · soft' },
+  { provider: 'elevenlabs', id: 'JBFqnCBsd6RMkjVDRZzb', label: 'George', accent: 'British · warm' },
+  { provider: 'elevenlabs', id: 'pNInz6obpgDQGcFmaJgB', label: 'Adam', accent: 'American · deep' },
+  { provider: 'cartesia', id: '6f84f4b8-58a2-430c-8c79-688dad597532', label: 'Brooke', accent: 'American · friendly' },
+  { provider: 'cartesia', id: 'a167e0f3-df7e-4d52-a9c3-f949145efdab', label: 'Blake', accent: 'American · confident' },
+  { provider: 'openai', id: 'alloy', label: 'Alloy', accent: 'Neutral' },
+  { provider: 'openai', id: 'nova', label: 'Nova', accent: 'Bright' },
+];
+
+export interface PhoneNumberDTO {
+  id: string; // E.164
+  number: string;
+  friendlyName: string;
+  country: string;
+  agentId: string | null;
+  provider: 'twilio';
+  status: 'active' | 'releasing';
+  createdAt: string;
+}
+
+export interface CallDTO extends ConversationDTO {
+  direction: 'inbound' | 'outbound' | 'web';
+  from?: string | null;
+  to?: string | null;
+  durationSec?: number;
+  recordingUrl?: string | null;
+  summary?: string | null;
+  endedReason?: string | null;
+}
+
+export const ToolKindEnum = z.enum(['api_request', 'google_calendar', 'google_sheets', 'gohighlevel', 'mcp', 'webhook']);
+export type ToolKind = z.infer<typeof ToolKindEnum>;
+
+export const ToolInputSchema = z.object({
+  kind: ToolKindEnum,
+  name: z
+    .string()
+    .min(2)
+    .max(48)
+    .regex(/^[a-z][a-z0-9_]*$/, 'Use lowercase letters, numbers and underscores, starting with a letter'),
+  description: z.string().min(10).max(500),
+  enabled: z.boolean().default(true),
+  /** JSON-schema-like list of inputs the AI must collect before calling the tool. */
+  parameters: z
+    .array(
+      z.object({
+        name: z.string().regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/),
+        type: z.enum(['string', 'number', 'boolean']).default('string'),
+        description: z.string().max(200).default(''),
+        required: z.boolean().default(true),
+      })
+    )
+    .max(15)
+    .default([]),
+  config: z.record(z.any()).default({}),
+  speakWhileRunning: z.string().max(120).default('One moment while I check that.'),
+});
+export type ToolInput = z.infer<typeof ToolInputSchema>;
+export interface ToolDTO extends ToolInput {
+  id: string;
+  connected: boolean;
+  lastRunAt?: string | null;
+  lastError?: string | null;
+  createdAt: string;
+}
+
+export interface CampaignDTO {
+  id: string;
+  name: string;
+  agentId: string;
+  fromNumber: string;
+  status: 'draft' | 'running' | 'paused' | 'completed';
+  timezone: string;
+  windowStart: string; // "09:00"
+  windowEnd: string; // "18:00"
+  maxConcurrent: number;
+  maxAttempts: number;
+  stats: { total: number; pending: number; calling: number; completed: number; failed: number; noAnswer: number };
+  createdAt: string;
+}
+
+export interface ApiKeyDTO {
+  id: string;
+  name: string;
+  prefix: string;
+  lastUsedAt?: string | null;
+  createdAt: string;
+}
+
+export const AGENT_TEMPLATES: { id: string; name: string; industry: string; description: string; agent: Partial<AgentInput> }[] = [
+  {
+    id: 'dental',
+    name: 'Dental front desk',
+    industry: 'Healthcare',
+    description: 'Answers treatment and price questions, books check-ups, routes emergencies.',
+    agent: {
+      name: 'Dental Assistant',
+      systemPrompt:
+        'You are the friendly front desk of a dental clinic. Help patients with treatments, prices, insurance and opening hours, and encourage them to book a visit. Never diagnose. For pain or emergencies share the emergency number and offer a same-day slot.',
+      greeting: "Hi! I'm the clinic assistant. Ask me about treatments, prices or booking a visit.",
+    },
+  },
+  {
+    id: 'real_estate',
+    name: 'Real estate lead qualifier',
+    industry: 'Real estate',
+    description: 'Qualifies buyers and renters (budget, area, timeline) and books viewings.',
+    agent: {
+      name: 'Property Assistant',
+      systemPrompt:
+        'You help people find property. Ask one question at a time to learn: buy or rent, preferred area, budget, bedrooms and move-in timeline. Then offer to book a viewing and collect name and phone number.',
+      greeting: 'Hi! Looking to buy or rent? I can help you find the right place.',
+    },
+  },
+  {
+    id: 'restaurant',
+    name: 'Restaurant host',
+    industry: 'Restaurant / Hospitality',
+    description: 'Shares the menu and hours, takes table reservations and large-group enquiries.',
+    agent: {
+      name: 'Restaurant Host',
+      systemPrompt:
+        'You are the host of a restaurant. Answer questions about the menu, dietary options, hours and location. Take reservations by collecting date, time, party size, name and phone number.',
+      greeting: 'Welcome! Want to see the menu or book a table?',
+    },
+  },
+  {
+    id: 'ecommerce',
+    name: 'E-commerce support',
+    industry: 'E-commerce',
+    description: 'Product questions, shipping and returns policy, order status handoff.',
+    agent: {
+      name: 'Shop Assistant',
+      systemPrompt:
+        'You help shoppers with product questions, sizing, shipping times and the returns policy. For order-specific problems collect the order number and email and hand off to the team.',
+      greeting: 'Hi! Questions about a product, shipping or returns? Ask away.',
+    },
+  },
+  {
+    id: 'home_services',
+    name: 'Home services dispatcher',
+    industry: 'Local services',
+    description: 'Plumbing, HVAC, cleaning: captures the job, address and urgency, books a visit.',
+    agent: {
+      name: 'Service Dispatcher',
+      systemPrompt:
+        'You book home service jobs. Find out the problem, how urgent it is, the address and a good time, then collect name and phone number. Emergencies (flooding, no heat in winter, gas smell) get the emergency line immediately.',
+      greeting: "Hi! What can we help fix today?",
+    },
+  },
+  {
+    id: 'saas',
+    name: 'SaaS sales & support',
+    industry: 'SaaS / Tech',
+    description: 'Explains features and pricing, books demos, answers how-to questions from docs.',
+    agent: {
+      name: 'Product Assistant',
+      systemPrompt:
+        'You answer questions about the product using the knowledge base: features, pricing plans, integrations and how-to steps. Offer to book a demo for teams evaluating the product.',
+      greeting: 'Hi! Want a quick tour, pricing, or help with something specific?',
+    },
+  },
+];

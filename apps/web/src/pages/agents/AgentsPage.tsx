@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, StatusPill, Sheet, TextField, EmptyState, Badge } from '@zdoda/ui';
 import { Bot, Plus, Copy, Trash2, ChevronRight } from 'lucide-react';
-import { MODEL_CATALOG, type AgentDTO } from '@zdoda/shared';
+import { AGENT_TEMPLATES, MODEL_CATALOG, type AgentDTO } from '@zdoda/shared';
 import { api } from '../../lib/api';
 import { useApiMutation, useCan, useWorkspace, wsKey, timeAgo } from '../../lib/hooks';
 import { Page, LoadingBlock, ErrorBlock } from '../../components/common/Page';
@@ -15,8 +15,9 @@ export const AgentsPage: React.FC = () => {
   const q = useQuery({ queryKey: wsKey('agents'), queryFn: () => api.get<{ items: AgentDTO[] }>('/agents') });
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
+  const [template, setTemplate] = useState<string>('blank');
 
-  const create = useApiMutation((n: string) => api.post<AgentDTO>('/agents', { name: n }), {
+  const create = useApiMutation((n: string) => api.post<AgentDTO>('/agents', { ...(AGENT_TEMPLATES.find((t) => t.id === template)?.agent || {}), name: n }), {
     invalidate: [['agents'], ['workspace']],
     onSuccess: (a) => navigate(`/agents/${a.id}`),
   });
@@ -106,7 +107,7 @@ export const AgentsPage: React.FC = () => {
         open={open}
         onOpenChange={setOpen}
         title="New agent"
-        description="Give it a name — you can change everything later."
+        description="Pick a template for your industry or start from scratch."
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setOpen(false)}>
@@ -118,7 +119,27 @@ export const AgentsPage: React.FC = () => {
           </div>
         }
       >
-        <TextField label="Agent name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Front Desk Assistant" autoFocus />
+        <div className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-2 max-h-[340px] overflow-y-auto">
+            {[{ id: 'blank', name: 'Start from scratch', industry: 'Any business', description: 'An empty agent you configure yourself.' }, ...AGENT_TEMPLATES].map((t) => (
+              <button
+                type="button"
+                key={t.id}
+                onClick={() => {
+                  setTemplate(t.id);
+                  const tpl = AGENT_TEMPLATES.find((x) => x.id === t.id);
+                  if (tpl?.agent.name && (!name || AGENT_TEMPLATES.some((x) => x.agent.name === name))) setName(tpl.agent.name);
+                }}
+                className={`text-left p-3 rounded-[12px] border ${template === t.id ? 'border-[var(--accent)] bg-[var(--accent-tint)]' : 'border-[var(--separator)] hover:border-[var(--separator-strong)]'}`}
+              >
+                <p className="text-[13px] font-semibold text-[var(--ink)]">{t.name}</p>
+                <p className="text-[11px] text-[var(--ink-3)]">{t.industry}</p>
+                <p className="text-[12px] text-[var(--ink-2)] mt-1 line-clamp-2">{t.description}</p>
+              </button>
+            ))}
+          </div>
+          <TextField label="Agent name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Front Desk Assistant" />
+        </div>
       </Sheet>
     </Page>
   );

@@ -135,6 +135,9 @@ class DocRef {
   get id() {
     return this.path.split('/').pop()!;
   }
+  get parent() {
+    return new CollRef(this.store, this.path.split('/').slice(0, -1).join('/'));
+  }
   collection(name: string) {
     return new CollRef(this.store, `${this.path}/${name}`);
   }
@@ -168,22 +171,26 @@ class Query {
     public path: string,
     protected filters: Filter[] = [],
     protected orders: { field: string; dir: 'asc' | 'desc' }[] = [],
-    protected max?: number
+    protected max?: number,
+    protected group?: string
   ) {}
   where(field: string, op: string, value: any) {
-    return new Query(this.store, this.path, [...this.filters, { field, op, value }], this.orders, this.max);
+    return new Query(this.store, this.path, [...this.filters, { field, op, value }], this.orders, this.max, this.group);
   }
   orderBy(field: string, dir: 'asc' | 'desc' = 'asc') {
-    return new Query(this.store, this.path, this.filters, [...this.orders, { field, dir }], this.max);
+    return new Query(this.store, this.path, this.filters, [...this.orders, { field, dir }], this.max, this.group);
   }
   limit(n: number) {
-    return new Query(this.store, this.path, this.filters, this.orders, n);
+    return new Query(this.store, this.path, this.filters, this.orders, n, this.group);
   }
   protected matches(): Snapshot[] {
     const depth = this.path.split('/').length + 1;
     let rows: Snapshot[] = [];
     for (const [p, data] of this.store.docs) {
-      if (!p.startsWith(this.path + '/') || p.split('/').length !== depth) continue;
+      const segs = p.split('/');
+      if (this.group) {
+        if (segs.length % 2 !== 0 || segs[segs.length - 2] !== this.group) continue;
+      } else if (!p.startsWith(this.path + '/') || segs.length !== depth) continue;
       const ok = this.filters.every(({ field, op, value }) => {
         const v = getPath(data, field);
         switch (op) {
@@ -247,6 +254,10 @@ class CollRef extends Query {
   get id() {
     return this.path.split('/').pop()!;
   }
+  get parent() {
+    const segs = this.path.split('/');
+    return segs.length > 1 ? new DocRef(this.store, segs.slice(0, -1).join('/')) : null;
+  }
   doc(id?: string) {
     return new DocRef(this.store, `${this.path}/${id || randomBytes(10).toString('base64url')}`);
   }
@@ -265,6 +276,9 @@ export class MemoryFirestore {
   settings() {}
   collection(path: string) {
     return new CollRef(this.store, path);
+  }
+  collectionGroup(id: string) {
+    return new Query(this.store, '', [], [], undefined, id);
   }
   doc(path: string) {
     return new DocRef(this.store, path);

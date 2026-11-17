@@ -16,8 +16,6 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { OnboardingPage } from './pages/onboarding/OnboardingPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { DesignPage } from './pages/design/DesignPage';
-import { FeaturePlaceholderPage } from './pages/placeholder/FeaturePlaceholderPage';
-import { Phone } from 'lucide-react';
 import { ToastProvider } from './context/ToastContext';
 import { AgentsPage } from './pages/agents/AgentsPage';
 import { AgentBuilderPage } from './pages/agents/AgentBuilderPage';
@@ -32,6 +30,11 @@ import { BillingPage } from './pages/billing/BillingPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { InvitePage } from './pages/invite/InvitePage';
 import { AuthActionPage } from './pages/auth/AuthActionPage';
+import { PhoneNumbersPage } from './pages/phone/PhoneNumbersPage';
+import { CampaignsPage } from './pages/campaigns/CampaignsPage';
+import { AgencyPage } from './pages/agency/AgencyPage';
+import { DevelopersPage } from './pages/developers/DevelopersPage';
+import { AdminPage } from './pages/admin/AdminPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,17 +81,11 @@ export const App: React.FC = () => {
               <Route path="/channels" element={<ChannelsPage />} />
               <Route path="/widget-studio" element={<WidgetStudioPage />} />
               <Route path="/inbox" element={<InboxPage />} />
-              <Route
-                path="/phone-numbers"
-                element={
-                  <FeaturePlaceholderPage
-                    title="Phone Numbers"
-                    description="Buy or port a phone number and let your agent answer calls with a natural voice. Voice AI is the next release."
-                    phase={5}
-                    icon={<Phone className="w-8 h-8" />}
-                  />
-                }
-              />
+              <Route path="/phone-numbers" element={<PhoneNumbersPage />} />
+              <Route path="/campaigns" element={<CampaignsPage />} />
+              <Route path="/agency" element={<AgencyPage />} />
+              <Route path="/developers" element={<DevelopersPage />} />
+              <Route path="/admin" element={<AdminPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/team" element={<TeamPage />} />
               <Route path="/billing" element={<BillingPage />} />

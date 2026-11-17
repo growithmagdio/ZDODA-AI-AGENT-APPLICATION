@@ -133,6 +133,7 @@ knowledgeRouter.patch(
     const input = parse(
       z.object({
         name: z.string().min(1).max(120).optional(),
+        syncSchedule: z.enum(['off', 'daily', 'weekly', 'monthly']).optional(),
         text: z.string().min(1).max(200_000).optional(),
         items: z.array(z.object({ q: z.string().min(1).max(500), a: z.string().min(1).max(4000) })).min(1).max(500).optional(),
       }),
@@ -178,3 +179,20 @@ knowledgeRouter.post(
     res.json({ results: results.map((r) => ({ ...r, text: clip(r.text, 600), score: Math.round(r.score * 1000) / 1000 })) });
   })
 );
+
+const PERIOD_MS: Record<string, number> = { daily: 86400_000, weekly: 7 * 86400_000, monthly: 30 * 86400_000 };
+
+/** Daily scheduler: re-crawls website sources whose sync schedule is due. */
+export async function runKnowledgeResync() {
+  const { db } = await import('../firebase.js');
+  const snap = await db().collectionGroup('knowledgeSources').where('syncSchedule', 'in', ['daily', 'weekly', 'monthly']).get().catch(() => null);
+  let queued = 0;
+  for (const d of snap?.docs || []) {
+    const last = d.get('lastSyncedAt')?.toMillis?.() || d.get('updatedAt')?.toMillis?.() || 0;
+    if (Date.now() - last < PERIOD_MS[d.get('syncSchedule')] - 3600_000 || d.get('status') === 'processing') continue;
+    await d.ref.update({ status: 'queued', lastSyncedAt: FieldValue.serverTimestamp(), reprocessRequestedAt: FieldValue.serverTimestamp() });
+    if (config.ingestMode === 'inline') await processSource(d.ref.parent.parent!.id, d.id);
+    queued++;
+  }
+  return { queued };
+}

@@ -7,6 +7,7 @@ import { api } from '../../lib/api';
 import { useApiMutation, useCan, wsKey, timeAgo } from '../../lib/hooks';
 import { Page, LoadingBlock, ErrorBlock, SectionTitle } from '../../components/common/Page';
 import { useToast } from '../../context/ToastContext';
+import { AgentToolsSection } from './AgentToolsSection';
 
 const EVENT_LABELS: Record<string, string> = {
   'lead.captured': 'New lead captured',
@@ -46,7 +47,7 @@ export const ToolsPage: React.FC = () => {
   return (
     <Page
       title="Tools & Integrations"
-      subtitle="Send leads and handoffs to the tools you already use — CRMs, Google Sheets, Slack, email — through Make, Zapier, n8n or your own webhook."
+      subtitle="Give agents tools to act (book, save leads, look things up), and send events to Make, Zapier or n8n."
       action={can('create', 'Integration') && <Button icon={<Plus className="w-4 h-4" />} onClick={() => (setOpen(true), setSecret(null), setUrl(''), setName(''))}>Connect</Button>}
     >
       {q.isLoading ? (
@@ -56,7 +57,7 @@ export const ToolsPage: React.FC = () => {
       ) : (
         <Card className="p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-[var(--separator)]">
-            <p className="text-[15px] font-semibold text-[var(--ink)]">Connected</p>
+            <p className="text-[15px] font-semibold text-[var(--ink)]">Event webhooks (Make / Zapier / n8n)</p>
           </div>
           {!q.data!.items.length ? (
             <div className="p-8 text-center space-y-2">
@@ -99,8 +100,10 @@ export const ToolsPage: React.FC = () => {
         </Card>
       )}
 
+      <AgentToolsSection />
+
       <div>
-        <SectionTitle title="Built-in actions" description="Your agent can do these today." />
+        <SectionTitle title="Always on" description="Built into every agent." />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <Card className="flex gap-3">
             <CalendarDays className="w-5 h-5 text-[var(--accent)] shrink-0" />
@@ -120,11 +123,9 @@ export const ToolsPage: React.FC = () => {
       </div>
 
       <div>
-        <SectionTitle title="Native integrations" description="Direct connections, no automation tool needed." />
+        <SectionTitle title="More native integrations" description="Coming next. Until then, connect them through Make, Zapier or n8n above." />
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mt-4">
           {[
-            { name: 'Google Calendar', icon: <CalendarDays className="w-5 h-5" /> },
-            { name: 'Google Sheets', icon: <SheetIcon className="w-5 h-5" /> },
             { name: 'Slack', icon: <Slack className="w-5 h-5" /> },
             { name: 'HubSpot', icon: <Building2 className="w-5 h-5" /> },
             { name: 'Shopify', icon: <ShoppingBag className="w-5 h-5" /> },

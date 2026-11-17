@@ -1,0 +1,3 @@
+livekit-agents[deepgram,elevenlabs,cartesia,openai,anthropic,google,silero,turn-detector]~=1.8
+livekit-api>=1.0
+httpx>=0.27

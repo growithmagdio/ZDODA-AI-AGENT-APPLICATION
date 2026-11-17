@@ -83,7 +83,7 @@ interface ChatResponse {
   }
 
   async function start() {
-    const { config } = await call<{ config: WidgetConfigV1 }>(`/widgets/${widgetId}/config`);
+    const { config, voice } = await call<{ config: WidgetConfigV1; voice?: { enabled: boolean } }>(`/widgets/${widgetId}/config`);
     const host = document.createElement('div');
     host.id = 'zdoda-widget';
     const inlineTarget = config.layout.mode === 'inline' && config.layout.inlineSelector ? document.querySelector(config.layout.inlineSelector) : null;
@@ -103,8 +103,31 @@ interface ChatResponse {
       conversationId = conversationToken = null;
     }
 
+    const scriptBase = (script?.src || '').replace(/[^/]*$/, '');
+    const loadVoice = () =>
+      new Promise<any>((resolve, reject) => {
+        if (w.ZdodaVoice) return resolve(w.ZdodaVoice);
+        const s = document.createElement('script');
+        s.src = scriptBase + 'zdoda-voice.js';
+        s.async = true;
+        s.onload = () => (w.ZdodaVoice ? resolve(w.ZdodaVoice) : reject(new Error('Voice failed to load')));
+        s.onerror = () => reject(new Error('Voice failed to load'));
+        document.head.appendChild(s);
+      });
+
     instance = mountWidget(host, config, {
       mode: 'live',
+      voice: voice?.enabled
+        ? {
+            start: async (ui) => {
+              const [lib, tok] = await Promise.all([
+                loadVoice(),
+                call<{ serverUrl: string; token: string; callId: string }>(`/widgets/${widgetId}/voice-token`, { method: 'POST', body: JSON.stringify({ visitorId }) }),
+              ]);
+              return lib.startVoiceCall({ serverUrl: tok.serverUrl, token: tok.token, onState: ui.onState, onTranscript: ui.onTranscript });
+            },
+          }
+        : undefined,
       initialMessages: initial,
       onToggle: (open) => (open && conversationId ? startPolling() : undefined),
       onSend: async (text) => {

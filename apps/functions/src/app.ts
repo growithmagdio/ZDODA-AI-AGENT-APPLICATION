@@ -12,10 +12,17 @@ import { widgetsRouter } from './routes/widgets.js';
 import { conversationsRouter, leadsRouter } from './routes/conversations.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { teamRouter, invitesRouter } from './routes/team.js';
-import { billingRouter, handleStripeWebhook } from './routes/billing.js';
+import { billingRouter, handleStripeWebhook, handleRazorpayWebhook } from './routes/billing.js';
 import { integrationsRouter } from './routes/integrations.js';
 import { publicRouter } from './routes/public.js';
 import { systemRouter } from './routes/system.js';
+import { voiceRouter, phoneNumbersRouter, callsRouter, voiceWorkerRouter, requireVoiceWorker, handleLivekitWebhook } from './routes/voice.js';
+import { whatsappRouter, whatsappWebhookRouter } from './routes/whatsapp.js';
+import { toolsRouter, oauthRouter } from './routes/tools.js';
+import { campaignsRouter } from './routes/campaigns.js';
+import { adminRouter } from './routes/admin.js';
+import { agencyRouter } from './routes/agency.js';
+import { apiKeysRouter, restApiRouter } from './routes/apikeys.js';
 
 export function createApp(): Express {
   const app = express();
@@ -56,6 +63,14 @@ export function createApp(): Express {
   // Public widget endpoints: any origin (per-widget allow-list is enforced inside).
   v1.use('/public', cors({ origin: true, credentials: false, maxAge: 600 }), publicRouter);
   v1.post('/billing/webhook', h(async (req, res) => res.json(await handleStripeWebhook(req))));
+  v1.post('/billing/razorpay/webhook', h(async (req, res) => res.json(await handleRazorpayWebhook(req))));
+  v1.post('/voice/livekit-webhook', express.raw({ type: '*/*' }), h(async (req, res) => res.json(await handleLivekitWebhook(req))));
+  v1.use('/webhooks/whatsapp', whatsappWebhookRouter);
+  v1.use('/oauth', oauthRouter);
+  // Voice worker (server-to-server, shared secret)
+  v1.use('/voice-worker', requireVoiceWorker, voiceWorkerRouter);
+  // Public REST API for customers (API keys)
+  v1.use('/rest', cors({ origin: true, credentials: false }), restApiRouter);
 
   // Dashboard API: our web origins only + Firebase ID token.
   const dashboardCors = cors({ origin: config.corsOrigins, credentials: true });
@@ -74,6 +89,15 @@ export function createApp(): Express {
   v1.use('/team', ...scoped, teamRouter);
   v1.use('/billing', ...scoped, billingRouter);
   v1.use('/integrations', ...scoped, integrationsRouter);
+  v1.use('/voice', ...scoped, voiceRouter);
+  v1.use('/phone-numbers', ...scoped, phoneNumbersRouter);
+  v1.use('/calls', ...scoped, callsRouter);
+  v1.use('/channels/whatsapp', ...scoped, whatsappRouter);
+  v1.use('/tools', ...scoped, toolsRouter);
+  v1.use('/campaigns', ...scoped, campaignsRouter);
+  v1.use('/agency', ...scoped, agencyRouter);
+  v1.use('/api-keys', ...scoped, apiKeysRouter);
+  v1.use('/admin', requireUser, adminRouter);
 
   app.use('/api/v1', v1);
   app.use('/api', (_req, res) => res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Unknown API route' } }));

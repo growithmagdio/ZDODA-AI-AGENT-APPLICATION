@@ -4,7 +4,7 @@ import type { WidgetConfigV1 } from '@zdoda/shared';
 import { api } from '../../lib/api';
 
 /** Mounts the real widget runtime (same code as the embed) inside the Studio preview. */
-export const WidgetPreview: React.FC<{ config: WidgetConfigV1; agentId?: string; device: 'desktop' | 'mobile'; siteName: string }> = ({ config, agentId, device, siteName }) => {
+export const WidgetPreview: React.FC<{ config: WidgetConfigV1; agentId?: string; device: 'desktop' | 'mobile'; siteName: string; voiceEnabled?: boolean }> = ({ config, agentId, device, siteName, voiceEnabled }) => {
   const hostRef = useRef<HTMLDivElement>(null);
   const inst = useRef<WidgetInstance | null>(null);
   const conv = useRef<string | null>(null);
@@ -16,6 +16,14 @@ export const WidgetPreview: React.FC<{ config: WidgetConfigV1; agentId?: string;
     inst.current = mountWidget(hostRef.current, config, {
       mode: 'preview',
       startOpen: true,
+      voice: voiceEnabled
+        ? {
+            start: async (ui) => {
+              const [{ startVoiceCall }, tok] = await Promise.all([import('@zdoda/widget/voice'), api.post<{ serverUrl: string; token: string }>('/voice/test-call', { agentId: agentRef.current })]);
+              return startVoiceCall({ serverUrl: tok.serverUrl, token: tok.token, onState: ui.onState, onTranscript: ui.onTranscript });
+            },
+          }
+        : undefined,
       onSend: async (text) => {
         if (!agentRef.current) return { reply: { text: 'Pick an agent for this widget to test real answers.' } };
         const out = await api.post(`/agents/${agentRef.current}/test`, { message: text, conversationId: conv.current });
@@ -25,7 +33,7 @@ export const WidgetPreview: React.FC<{ config: WidgetConfigV1; agentId?: string;
     });
     return () => inst.current?.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [device]);
+  }, [device, voiceEnabled]);
 
   useEffect(() => {
     inst.current?.update(config);

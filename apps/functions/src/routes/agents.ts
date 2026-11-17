@@ -66,6 +66,14 @@ agentsRouter.post(
     if (!(await ref.get()).exists) throw notFound('Agent');
     const published = req.body?.unpublish ? { status: 'draft', publishedAt: null } : { status: 'published', publishedAt: FieldValue.serverTimestamp() };
     await ref.update({ ...published, updatedAt: FieldValue.serverTimestamp() });
+    if (!req.body?.unpublish) {
+      // Immutable snapshot of what went live, for history / rollback.
+      const snap = await ref.get();
+      const { status, publishedAt, createdAt, updatedAt, ...cfg } = snap.data() || {};
+      const n = (await paths.agentVersions(req.ws!.workspaceId, ref.id).count().get()).data().count + 1;
+      await paths.agentVersions(req.ws!.workspaceId, ref.id).doc(String(n)).set({ version: n, config: cfg, publishedBy: req.user!.uid, publishedByEmail: req.user!.email, createdAt: FieldValue.serverTimestamp() });
+      await ref.update({ publishedVersion: n });
+    }
     await audit(req.ws!.workspaceId, req.user!, req.body?.unpublish ? 'agent.unpublished' : 'agent.published', { agentId: ref.id });
     res.json(serialize({ id: ref.id, ...(await ref.get()).data() }));
   })
@@ -106,5 +114,26 @@ agentsRouter.post(
     const input = parse(z.object({ message: z.string().min(1).max(2000), conversationId: z.string().optional().nullable() }), req.body);
     const out = await runTurn({ ws: req.ws!.workspaceId, agentId: req.params.id, channel: 'test', text: input.message, conversationId: input.conversationId });
     res.json(out);
+  })
+);
+
+agentsRouter.get(
+  '/:id/versions',
+  requirePermission('read', 'Agent'),
+  h(async (req, res) => {
+    const snap = await paths.agentVersions(req.ws!.workspaceId, req.params.id).orderBy('version', 'desc').limit(50).get();
+    res.json({ items: snap.docs.map((d) => serialize({ id: d.id, version: d.get('version'), publishedByEmail: d.get('publishedByEmail'), createdAt: d.get('createdAt') })) });
+  })
+);
+
+agentsRouter.post(
+  '/:id/versions/:version/restore',
+  requirePermission('update', 'Agent'),
+  h(async (req, res) => {
+    const ref = paths.agents(req.ws!.workspaceId).doc(req.params.id);
+    const v = await paths.agentVersions(req.ws!.workspaceId, req.params.id).doc(req.params.version).get();
+    if (!v.exists) throw notFound('Version');
+    await ref.update({ ...v.get('config'), updatedAt: FieldValue.serverTimestamp() });
+    res.json(serialize({ id: ref.id, ...(await ref.get()).data() }));
   })
 );

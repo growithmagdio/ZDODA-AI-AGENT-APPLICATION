@@ -1,5 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
+import { createHmac as _hmac, timingSafeEqual as _tse } from 'node:crypto';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { DEMO_PLANS } from '@zdoda/shared';
 import type Stripe from 'stripe';
@@ -23,8 +24,9 @@ billingRouter.get(
     const plans = DEMO_PLANS.map((p) => ({
       ...p,
       purchasable: p.slug !== 'agency' && (!stripeConfigured() || Boolean(config.stripePrice(p.slug, 'month'))),
+      inrPurchasable: razorpayConfigured() && Boolean(config.razorpayPlan(p.slug)),
     }));
-    res.json({ ...summary, plans });
+    res.json({ ...summary, plans, razorpay: razorpayConfigured() });
   })
 );
 
@@ -158,4 +160,69 @@ export async function handleStripeWebhook(req: Request) {
       break;
   }
   return { received: true, type: event.type };
+}
+
+// ---------------------------------------------------------------------------
+// Razorpay (INR subscriptions for India)
+// ---------------------------------------------------------------------------
+
+export const razorpayConfigured = () => Boolean(config.razorpayKeyId && config.razorpayKeySecret);
+
+async function rzp(method: 'GET' | 'POST', path: string, body?: unknown) {
+  const res = await fetch(`https://api.razorpay.com/v1${path}`, {
+    method,
+    headers: { authorization: 'Basic ' + Buffer.from(`${config.razorpayKeyId}:${config.razorpayKeySecret}`).toString('base64'), 'content-type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(15_000),
+  });
+  const json: any = await res.json().catch(() => ({}));
+  if (!res.ok) throw new AppError(400, 'RAZORPAY_ERROR', json?.error?.description || `Razorpay HTTP ${res.status}`);
+  return json;
+}
+
+billingRouter.post(
+  '/razorpay/subscribe',
+  requirePermission('manage_billing', 'Billing'),
+  h(async (req, res) => {
+    if (!razorpayConfigured()) throw new AppError(400, 'RAZORPAY_NOT_CONFIGURED', 'INR payments are not set up yet');
+    const { plan } = parse(z.object({ plan: PaidPlan }), req.body);
+    const planId = config.razorpayPlan(plan);
+    if (!planId) throw new AppError(400, 'PRICE_MISSING', `No Razorpay plan configured for ${plan}`);
+    const sub = await rzp('POST', '/subscriptions', { plan_id: planId, total_count: 120, customer_notify: 1, notes: { workspaceId: req.ws!.workspaceId, plan } });
+    await paths.workspace(req.ws!.workspaceId).update({ 'billing.razorpaySubscriptionId': sub.id });
+    res.json({ keyId: config.razorpayKeyId, subscriptionId: sub.id, shortUrl: sub.short_url || null });
+  })
+);
+
+/** Razorpay webhook (raw body, header x-razorpay-signature). */
+export async function handleRazorpayWebhook(req: Request) {
+  if (!config.razorpayWebhookSecret) throw new AppError(400, 'RAZORPAY_DISABLED', 'Razorpay webhooks are not configured');
+  const sig = String(req.headers['x-razorpay-signature'] || '');
+  const expected = _hmac('sha256', config.razorpayWebhookSecret).update(req.rawBody || Buffer.from('')).digest('hex');
+  if (sig.length !== expected.length || !_tse(Buffer.from(sig), Buffer.from(expected))) throw new AppError(400, 'BAD_SIGNATURE', 'Invalid signature');
+  const event = req.body?.event as string;
+  const sub = req.body?.payload?.subscription?.entity;
+  const ws = sub?.notes?.workspaceId;
+  if (!ws) return { received: true };
+  const statusMap: Record<string, string> = {
+    'subscription.activated': 'active',
+    'subscription.charged': 'active',
+    'subscription.resumed': 'active',
+    'subscription.pending': 'past_due',
+    'subscription.halted': 'past_due',
+    'subscription.cancelled': 'canceled',
+    'subscription.completed': 'canceled',
+  };
+  if (statusMap[event]) {
+    await paths.workspace(ws).update({
+      ...(sub.notes?.plan ? { plan: sub.notes.plan } : {}),
+      'billing.status': statusMap[event],
+      'billing.provider': 'razorpay',
+      'billing.interval': 'month',
+      'billing.razorpaySubscriptionId': sub.id,
+      'billing.currentPeriodEnd': sub.current_end ? Timestamp.fromMillis(sub.current_end * 1000) : null,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+  return { received: true, event };
 }

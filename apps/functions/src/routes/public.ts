@@ -4,6 +4,8 @@ import { WidgetConfigV1Schema } from '@zdoda/shared';
 import { paths } from '../firebase.js';
 import { h, parse, serialize, AppError } from '../lib/http.js';
 import { runTurn } from '../chat/engine.js';
+import { livekitConfigured } from '../providers/livekit.js';
+import { publicVoiceToken } from './voice.js';
 
 export const publicRouter = Router();
 
@@ -37,11 +39,16 @@ publicRouter.get(
     const { ws, widget } = await loadWidget(req);
     const agent = await paths.agents(ws).doc(widget.get('agentId')).get();
     res.setHeader('cache-control', 'public, max-age=60');
+    const cfg = WidgetConfigV1Schema.parse(widget.get('publishedConfig'));
+    const wsSnap = await paths.workspace(ws).get();
+    const branding = wsSnap.get('branding');
+    if (branding?.widgetFooter) cfg.texts.footerText = branding.widgetFooter; // agency white-label
     res.json({
       widgetId: widget.id,
       version: widget.get('publishedVersion'),
-      config: WidgetConfigV1Schema.parse(widget.get('publishedConfig')),
+      config: cfg,
       agent: { name: agent.get('name'), live: agent.get('status') === 'published' },
+      voice: { enabled: Boolean(agent.get('voice')?.enabled) && livekitConfigured() },
     });
   })
 );
@@ -95,5 +102,15 @@ publicRouter.get(
       .map((d) => serialize({ id: d.id, role: d.get('role'), text: d.get('text'), authorName: d.get('authorName') || null, citations: d.get('citations') || [], createdAt: d.get('createdAt') }))
       .filter((m: any) => m.role !== 'system' && (!after || m.createdAt > after));
     res.json({ items, status: conv.get('status'), takeover: Boolean(conv.get('takeover')) });
+  })
+);
+
+publicRouter.post(
+  '/widgets/:widgetId/voice-token',
+  h(async (req, res) => {
+    const { visitorId } = parse(z.object({ visitorId: z.string().min(4).max(64) }), req.body);
+    rateLimit(`voice:${req.ip}`, 5, 10 * 60_000);
+    const { ws, widget } = await loadWidget(req);
+    res.json(await publicVoiceToken(ws, widget, visitorId));
   })
 );
